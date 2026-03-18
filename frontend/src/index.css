@@ -4,29 +4,46 @@
 
 :root {
   color-scheme: light;
-  --mc-hatch: repeating-linear-gradient(
-    135deg,
-    rgba(148, 163, 184, 0.35) 0px,
-    rgba(148, 163, 184, 0.35) 6px,
-    rgba(148, 163, 184, 0.12) 6px,
-    rgba(148, 163, 184, 0.12) 12px
-  );
+  font-family: "Avenir Next", "Segoe UI Variable", "Trebuchet MS", sans-serif;
+  --shell-bg:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 32%),
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.16), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 50%, #f7fafc 100%);
+  --shell-pattern:
+    linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px);
 }
 
 html.dark {
   color-scheme: dark;
-  --mc-hatch: repeating-linear-gradient(
-    135deg,
-    rgba(30, 41, 59, 0.9) 0px,
-    rgba(30, 41, 59, 0.9) 6px,
-    rgba(15, 23, 42, 0.55) 6px,
-    rgba(15, 23, 42, 0.55) 12px
-  );
+  --shell-bg:
+    radial-gradient(circle at top left, rgba(8, 145, 178, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #0f172a 55%, #111827 100%);
+  --shell-pattern:
+    linear-gradient(rgba(2, 6, 23, 0.74), rgba(2, 6, 23, 0.74)),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
 }
 
-/* Subtle background grid */
-.bg-grid {
-  background-image: radial-gradient(rgba(2, 132, 199, 0.12) 1px, transparent 1px);
-  background-size: 22px 22px;
+body {
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
 
+#root {
+  min-height: 100vh;
+}
+
+.bg-shell {
+  background-image: var(--shell-bg);
+}
+
+.bg-shell-pattern {
+  background-image: var(--shell-pattern);
+  background-size: auto, 26px 26px, 26px 26px;
+}
+
+.text-balance {
+  text-wrap: balance;
+}

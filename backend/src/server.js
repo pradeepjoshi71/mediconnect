@@ -1,20 +1,20 @@
-const app = require("./app");
 const http = require("http");
 const { Server } = require("socket.io");
-const { setIO } = require("./realtime/io");
+const app = require("./app");
+const { setIO, attachSocketHandlers } = require("./realtime/io");
 
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: true, credentials: true },
+  cors: {
+    origin: true,
+    credentials: true,
+  },
 });
 
 io.on("connection", (socket) => {
-  socket.on("auth:identify", ({ userId }) => {
-    if (!userId) return;
-    socket.join(`user:${userId}`);
-  });
+  attachSocketHandlers(socket);
 });
 
 setIO(io);

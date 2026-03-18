@@ -6,7 +6,10 @@ export function getAccessToken() {
 }
 
 export function setAccessToken(token) {
-  if (!token) return;
+  if (!token) {
+    localStorage.removeItem(ACCESS_KEY);
+    return;
+  }
   localStorage.setItem(ACCESS_KEY, token);
 }
 
@@ -21,7 +24,10 @@ export function getUser() {
 }
 
 export function setUser(user) {
-  if (!user) return;
+  if (!user) {
+    localStorage.removeItem(USER_KEY);
+    return;
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
@@ -30,3 +36,6 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 
+export function hasSession() {
+  return Boolean(getAccessToken() && getUser());
+}

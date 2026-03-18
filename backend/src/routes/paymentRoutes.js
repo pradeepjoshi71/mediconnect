@@ -1,12 +1,23 @@
 const express = require("express");
-const router = express.Router();
+const paymentController = require("../controllers/paymentController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const roleMiddleware = require("../middlewares/roleMiddleware");
-const { createCheckout, listMyPayments, markPaid } = require("../controllers/paymentController");
 
-router.get("/", authMiddleware, listMyPayments);
-router.post("/checkout", authMiddleware, roleMiddleware("patient", "admin"), createCheckout);
-router.post("/:id/mark-paid", authMiddleware, roleMiddleware("patient", "admin"), markPaid);
+const router = express.Router();
+
+router.get("/", authMiddleware, paymentController.listPayments);
+router.post(
+  "/:id/checkout",
+  authMiddleware,
+  roleMiddleware("patient", "admin", "receptionist"),
+  paymentController.createCheckout
+);
+router.patch(
+  "/:id/status",
+  authMiddleware,
+  roleMiddleware("patient", "admin", "receptionist"),
+  paymentController.updatePaymentStatus
+);
+router.get("/:id/invoice-pdf", authMiddleware, paymentController.downloadInvoicePdf);
 
 module.exports = router;
-

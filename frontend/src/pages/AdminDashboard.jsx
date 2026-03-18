@@ -1,59 +1,52 @@
-import { BarChart3, Plus, Users, CalendarDays, Stethoscope } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Activity, BarChart3, CreditCard, Plus, UsersRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { getDashboard } from "../services/dashboardService";
+import { getAnalyticsOverview } from "../services/analyticsService";
+import { createStaff, listUsers } from "../services/adminService";
+import { PageHeader } from "../components/ui/PageHeader";
+import { StatCard } from "../components/ui/StatCard";
+import { PaginatedTable } from "../components/ui/PaginatedTable";
+import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/Card";
+import { EmptyState } from "../components/ui/EmptyState";
 import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
-import { createDoctor, listAllAppointments, listUsers } from "../services/adminService";
-import { listPayments } from "../services/paymentService";
+import { TrendBars } from "../components/ui/TrendBars";
+import { formatCurrency, formatDateTime, statusTone } from "../utils/formatters";
 
-function StatCard({ icon: Icon, label, value }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-            <Icon className="h-4 w-4" />
-          </span>
-          {label}
-        </CardTitle>
-        <CardDescription>System overview</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-extrabold tracking-tight">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
+const initialStaff = {
+  fullName: "",
+  email: "",
+  password: "",
+  phone: "",
+  role: "doctor",
+  specialization: "",
+  department: "General Medicine",
+  experienceYears: 5,
+  consultationFeeCents: 5000,
+};
 
 export default function AdminDashboard() {
-  const [loading, setLoading] = useState(true);
+  const [dashboard, setDashboard] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const [users, setUsers] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [payments, setPayments] = useState([]);
   const [open, setOpen] = useState(false);
+  const [staffForm, setStaffForm] = useState(initialStaff);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    specialization: "",
-    experienceYears: 5,
-    rating: 4.7,
-  });
 
   async function load() {
-    setLoading(true);
     try {
-      const [u, a, p] = await Promise.all([listUsers(), listAllAppointments(), listPayments()]);
-      setUsers(u);
-      setAppointments(a);
-      setPayments(p);
+      const [dashboardData, analyticsData, usersData] = await Promise.all([
+        getDashboard(),
+        getAnalyticsOverview(),
+        listUsers(),
+      ]);
+      setDashboard(dashboardData);
+      setAnalytics(analyticsData);
+      setUsers(usersData);
     } catch {
-      toast.error("Failed to load admin data");
-    } finally {
-      setLoading(false);
+      toast.error("Unable to load admin dashboard");
     }
   }
 
@@ -61,172 +54,132 @@ export default function AdminDashboard() {
     load();
   }, []);
 
-  const counts = useMemo(() => {
-    const patients = users.filter((u) => u.role === "patient").length;
-    const doctors = users.filter((u) => u.role === "doctor").length;
-    return { patients, doctors };
-  }, [users]);
-
-  const revenue = useMemo(() => {
-    const paid = payments.filter((p) => p.status === "paid");
-    const cents = paid.reduce((sum, p) => sum + Number(p.amount_cents || 0), 0);
-    return { paidCount: paid.length, cents };
-  }, [payments]);
-
-  async function onCreateDoctor(e) {
-    e.preventDefault();
+  async function submitStaff(event) {
+    event.preventDefault();
     setCreating(true);
     try {
-      await createDoctor({
-        fullName: form.fullName,
-        email: form.email,
-        password: form.password,
-        specialization: form.specialization,
-        experienceYears: Number(form.experienceYears) || 0,
-        rating: Number(form.rating) || 4.5,
+      await createStaff({
+        ...staffForm,
+        experienceYears: Number(staffForm.experienceYears) || 0,
+        consultationFeeCents: Number(staffForm.consultationFeeCents) || 0,
       });
-      toast.success("Doctor added");
+      toast.success("Staff member created");
       setOpen(false);
-      setForm({
-        fullName: "",
-        email: "",
-        password: "",
-        specialization: "",
-        experienceYears: 5,
-        rating: 4.7,
-      });
-      load();
-    } catch (e2) {
-      toast.error(e2.response?.data?.message || "Create failed");
+      setStaffForm(initialStaff);
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to create staff member");
     } finally {
       setCreating(false);
     }
   }
 
+  const headline = analytics?.headline || dashboard?.stats || {};
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xl font-extrabold tracking-tight">Admin</div>
-          <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Manage doctors, patients and analytics.
-          </div>
-        </div>
-        <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add doctor
-        </Button>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Hospital administration"
+        title="Enterprise operations dashboard"
+        description="Monitor patient volumes, clinician throughput, revenue, and staffing from one executive command center."
+        actions={
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add doctor or receptionist
+          </Button>
+        }
+      />
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={UsersRound} label="Patients" value={headline.totalPatients || 0} helper="Registered patient profiles" />
+        <StatCard icon={Activity} label="Doctors" value={headline.totalDoctors || 0} helper="Provisioned clinicians" accent="teal" />
+        <StatCard icon={BarChart3} label="Appointments today" value={headline.appointmentsToday || 0} helper="Booked across the network" accent="amber" />
+        <StatCard icon={CreditCard} label="Revenue collected" value={formatCurrency(headline.revenueCollectedCents || 0)} helper="Paid invoices" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <StatCard icon={Users} label="Patients" value={counts.patients} />
-        <StatCard icon={Stethoscope} label="Doctors" value={counts.doctors} />
-        <StatCard icon={CalendarDays} label="Appointments" value={appointments.length} />
-        <StatCard
-          icon={BarChart3}
-          label="Payments (demo)"
-          value={`${revenue.paidCount} paid`}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <TrendBarsCard
+          title="Appointments over the last 7 days"
+          data={analytics?.appointmentSeries || []}
+          valueKey="count"
+          emptyTitle="No appointment activity"
+          emptyDescription="Trends will appear once bookings are created."
+        />
+        <TrendBarsCard
+          title="Revenue over the last 7 days"
+          data={analytics?.revenueSeries || []}
+          valueKey="amountCents"
+          formatter={(value) => `₹${Math.round(value / 100)}`}
+          emptyTitle="No revenue trend yet"
+          emptyDescription="Paid invoices will populate the revenue chart."
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent appointments</CardTitle>
-          <CardDescription>Latest activity across the system</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="h-24 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900" />
-          ) : appointments.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 dark:text-slate-400">
-                    <th className="py-2">Patient</th>
-                    <th className="py-2">Doctor</th>
-                    <th className="py-2">Starts</th>
-                    <th className="py-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {appointments.slice(0, 8).map((a) => (
-                    <tr key={a.id} className="border-t border-slate-200/70 dark:border-slate-800/60">
-                      <td className="py-3 font-semibold">{a.patient_name}</td>
-                      <td className="py-3">{a.doctor_name}</td>
-                      <td className="py-3">{new Date(a.starts_at).toLocaleString()}</td>
-                      <td className="py-3">
-                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                          {a.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
-              No appointments yet.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <PaginatedTable
+        rows={analytics?.doctorPerformance || []}
+        emptyState={<EmptyState title="No clinician performance data" description="Completed consultations will populate this table." />}
+        columns={[
+          { key: "doctorName", label: "Doctor" },
+          { key: "specialization", label: "Specialization" },
+          { key: "completedAppointments", label: "Completed visits" },
+          { key: "rating", label: "Rating", render: (row) => <Badge tone="brand">{row.rating}</Badge> },
+          { key: "revenueCents", label: "Revenue", render: (row) => formatCurrency(row.revenueCents) },
+        ]}
+      />
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Add doctor">
-        <form onSubmit={onCreateDoctor} className="space-y-3">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              placeholder="Full name"
-              value={form.fullName}
-              onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
-              required
-            />
-            <Input
-              type="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-              required
-            />
+      <PaginatedTable
+        rows={users}
+        emptyState={<EmptyState title="No users found" description="Staff and patient accounts will appear here." />}
+        columns={[
+          { key: "fullName", label: "User" },
+          { key: "email", label: "Email" },
+          { key: "role", label: "Role", render: (row) => <Badge tone={statusTone(row.role)}>{row.role}</Badge> },
+          { key: "createdAt", label: "Created", render: (row) => formatDateTime(row.createdAt) },
+        ]}
+      />
+
+      <PaginatedTable
+        rows={dashboard?.waitlist || []}
+        emptyState={<EmptyState title="Waitlist is clear" description="No pending waitlist requests at the moment." />}
+        columns={[
+          { key: "patientName", label: "Patient" },
+          { key: "doctorName", label: "Doctor" },
+          { key: "preferredDate", label: "Preferred date" },
+          { key: "priority", label: "Priority", render: (row) => <Badge tone={statusTone(row.priority)}>{row.priority}</Badge> },
+          { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+        ]}
+      />
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Provision staff account">
+        <form onSubmit={submitStaff} className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input placeholder="Full name" value={staffForm.fullName} onChange={(event) => setStaffForm((current) => ({ ...current, fullName: event.target.value }))} />
+            <Input type="email" placeholder="Email" value={staffForm.email} onChange={(event) => setStaffForm((current) => ({ ...current, email: event.target.value }))} />
           </div>
-          <Input
-            type="password"
-            placeholder="Temporary password"
-            value={form.password}
-            onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-            required
-          />
-          <Input
-            placeholder="Specialization (e.g., Cardiologist)"
-            value={form.specialization}
-            onChange={(e) => setForm((p) => ({ ...p, specialization: e.target.value }))}
-            required
-          />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input
-              type="number"
-              min="0"
-              max="80"
-              placeholder="Experience years"
-              value={form.experienceYears}
-              onChange={(e) => setForm((p) => ({ ...p, experienceYears: e.target.value }))}
-            />
-            <Input
-              type="number"
-              min="0"
-              max="5"
-              step="0.1"
-              placeholder="Rating"
-              value={form.rating}
-              onChange={(e) => setForm((p) => ({ ...p, rating: e.target.value }))}
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input placeholder="Phone" value={staffForm.phone} onChange={(event) => setStaffForm((current) => ({ ...current, phone: event.target.value }))} />
+            <Input type="password" placeholder="Temporary password" value={staffForm.password} onChange={(event) => setStaffForm((current) => ({ ...current, password: event.target.value }))} />
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="grid gap-4 md:grid-cols-2">
+            <select value={staffForm.role} onChange={(event) => setStaffForm((current) => ({ ...current, role: event.target.value }))} className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <option value="doctor">Doctor</option>
+              <option value="receptionist">Receptionist</option>
+            </select>
+            <Input placeholder="Department" value={staffForm.department} onChange={(event) => setStaffForm((current) => ({ ...current, department: event.target.value }))} />
+          </div>
+          {staffForm.role === "doctor" ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              <Input placeholder="Specialization" value={staffForm.specialization} onChange={(event) => setStaffForm((current) => ({ ...current, specialization: event.target.value }))} />
+              <Input type="number" min="0" placeholder="Experience years" value={staffForm.experienceYears} onChange={(event) => setStaffForm((current) => ({ ...current, experienceYears: event.target.value }))} />
+              <Input type="number" min="0" placeholder="Fee (cents)" value={staffForm.consultationFeeCents} onChange={(event) => setStaffForm((current) => ({ ...current, consultationFeeCents: event.target.value }))} />
+            </div>
+          ) : null}
+          <div className="flex justify-end gap-3">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" loading={creating}>
-              Create
+              Create account
             </Button>
           </div>
         </form>
@@ -235,3 +188,17 @@ export default function AdminDashboard() {
   );
 }
 
+function TrendBarsCard({ title, data, valueKey, formatter, emptyTitle, emptyDescription }) {
+  return (
+    <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-card backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85">
+      <div className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">{title}</div>
+      <div className="mt-5">
+        {data.length ? (
+          <TrendBars data={data} valueKey={valueKey} formatter={formatter} />
+        ) : (
+          <EmptyState title={emptyTitle} description={emptyDescription} />
+        )}
+      </div>
+    </div>
+  );
+}

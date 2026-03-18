@@ -1,109 +1,118 @@
-import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, Star } from "lucide-react";
+import { useDeferredValue, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
-import { Input } from "../components/ui/Input";
 import { listDoctors } from "../services/doctorService";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Card, CardContent } from "../components/ui/Card";
+import { Input } from "../components/ui/Input";
+import { Badge } from "../components/ui/Badge";
+import { EmptyState } from "../components/ui/EmptyState";
+import { formatCurrency } from "../utils/formatters";
 
 export default function DoctorsPage() {
-  const [loading, setLoading] = useState(true);
-  const [doctors, setDoctors] = useState([]);
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [specialization, setSpecialization] = useState("");
+  const [sort, setSort] = useState("rating");
+  const [minExperience, setMinExperience] = useState(0);
+  const [doctors, setDoctors] = useState([]);
 
   useEffect(() => {
-    let mounted = true;
-    async function load() {
-      setLoading(true);
-      try {
-        const data = await listDoctors({ search, specialization });
-        if (mounted) setDoctors(data);
-      } catch {
-        toast.error("Failed to load doctors");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, [search, specialization]);
+    listDoctors({
+      search: deferredSearch,
+      specialization,
+      sort,
+      minExperience,
+    })
+      .then(setDoctors)
+      .catch(() => toast.error("Unable to load doctors"));
+  }, [deferredSearch, specialization, sort, minExperience]);
 
-  const specializations = useMemo(() => {
-    const set = new Set(doctors.map((d) => d.specialization).filter(Boolean));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [doctors]);
+  const specializations = Array.from(
+    new Set(doctors.map((doctor) => doctor.specialization).filter(Boolean))
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Doctor discovery"
+        title="Find the right clinician for every visit"
+        description="Search doctors by specialty, experience, fee, and quality score before booking an appointment."
+      />
+
       <Card>
-        <CardHeader>
-          <CardTitle>Find a doctor</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="relative md:col-span-2">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Search by name or email…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <select
-              value={specialization}
-              onChange={(e) => setSpecialization(e.target.value)}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 dark:border-slate-800 dark:bg-slate-950"
-            >
-              <option value="">All specializations</option>
-              {specializations.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+        <CardContent className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr_0.6fr_0.6fr]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} className="pl-11" placeholder="Search by doctor name, specialty, or department" />
+          </div>
+          <select value={specialization} onChange={(event) => setSpecialization(event.target.value)} className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <option value="">All specialties</option>
+            {specializations.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <Input type="number" min="0" value={minExperience} onChange={(event) => setMinExperience(event.target.value)} placeholder="Minimum years" />
+          <div className="relative">
+            <SlidersHorizontal className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <option value="rating">Sort by rating</option>
+              <option value="experience">Sort by experience</option>
+              <option value="fee">Sort by fee</option>
             </select>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {loading ? (
-          <>
-            <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900" />
-            <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900" />
-            <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900" />
-            <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-900" />
-          </>
-        ) : doctors.length ? (
-          doctors.map((d) => (
-            <Card key={d.id} className="overflow-hidden">
-              <CardContent className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-base font-extrabold tracking-tight">{d.full_name}</div>
-                  <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    {d.specialization} • {d.experience_years} yrs • ⭐ {d.rating}
-                  </div>
-                  {d.bio ? (
-                    <div className="mt-3 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
-                      {d.bio}
+      {doctors.length ? (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {doctors.map((doctor) => (
+            <Card key={doctor.id} className="overflow-hidden">
+              <CardContent className="space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
+                      {doctor.fullName}
                     </div>
-                  ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge tone="brand">{doctor.specialization}</Badge>
+                      <Badge tone="teal">{doctor.department}</Badge>
+                    </div>
+                  </div>
+                  <div className="grid h-14 w-14 place-items-center rounded-3xl bg-gradient-to-br from-brand-600 to-tealish-600 text-lg font-black text-white">
+                    {doctor.fullName?.charAt(0)}
+                  </div>
                 </div>
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
-                  {(d.full_name || "D")[0]?.toUpperCase()}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Metric label="Experience" value={`${doctor.experienceYears} years`} />
+                  <Metric label="Rating" value={<span className="inline-flex items-center gap-2"><Star className="h-4 w-4 text-amber-500" />{doctor.rating}</span>} />
+                  <Metric label="Fee" value={formatCurrency(doctor.consultationFeeCents)} />
+                </div>
+                <div className="text-sm leading-7 text-slate-600 dark:text-slate-400">
+                  {doctor.biography || "Experienced clinician available for inpatient and outpatient consultations."}
                 </div>
               </CardContent>
             </Card>
-          ))
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
-            No doctors match that search yet.
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="No doctors match your filters" description="Try broadening the search by specialty or experience." />
+      )}
     </div>
   );
 }
 
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-3xl bg-slate-50 p-4 dark:bg-slate-900/60">
+      <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+        {label}
+      </div>
+      <div className="mt-2 text-lg font-black tracking-tight text-slate-950 dark:text-white">
+        {value}
+      </div>
+    </div>
+  );
+}

@@ -1,36 +1,71 @@
 const bcrypt = require("bcrypt");
-const repo = require("../repositories/authRepository");
+const authRepository = require("../repositories/authRepository");
 const {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
   hashRefreshToken,
 } = require("../utils/tokens");
+const { AppError } = require("../utils/http");
 
-async function register(fullName, email, password) {
-  const existingUser = await repo.findUserByEmail(email);
+function generateMedicalRecordNumber() {
+  return `MRN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+}
 
-  if (existingUser) {
-    throw new Error("User already exists");
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    status: user.status,
+    avatarUrl: user.avatarUrl,
+    patientProfileId: user.patientProfileId,
+    doctorProfileId: user.doctorProfileId,
+    medicalRecordNumber: user.medicalRecordNumber,
+    specialization: user.specialization,
+    department: user.department,
+    consultationFeeCents: user.consultationFeeCents,
+  };
+}
+
+async function registerPatient({
+  fullName,
+  email,
+  password,
+  phone,
+  dateOfBirth,
+  gender,
+}) {
+  const existing = await authRepository.findUserByEmail(email);
+  if (existing) {
+    throw new AppError(409, "An account with that email already exists");
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  const user = await repo.createUser(fullName, email, passwordHash);
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await authRepository.createPatientUser({
+    fullName,
+    email,
+    passwordHash,
+    phone,
+    medicalRecordNumber: generateMedicalRecordNumber(),
+    dateOfBirth,
+    gender,
+  });
 
-  return user;
+  return sanitizeUser(user);
 }
 
 async function login(email, password) {
-  const user = await repo.findUserByEmail(email);
-
+  const user = await authRepository.findUserByEmail(email);
   if (!user) {
-    throw new Error("Invalid credentials");
+    throw new AppError(401, "Invalid credentials");
   }
 
-  const match = await bcrypt.compare(password, user.password_hash);
-
-  if (!match) {
-    throw new Error("Invalid credentials");
+  const matches = await bcrypt.compare(password, user.passwordHash);
+  if (!matches) {
+    throw new AppError(401, "Invalid credentials");
   }
 
   const accessToken = signAccessToken({
@@ -38,64 +73,70 @@ async function login(email, password) {
     email: user.email,
     role: user.role,
   });
-
   const refreshToken = signRefreshToken({ userId: user.id });
-  const tokenHash = hashRefreshToken(refreshToken);
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
-  await repo.insertRefreshToken({ userId: user.id, tokenHash, expiresAt });
+
+  await Promise.all([
+    authRepository.insertRefreshToken({
+      userId: user.id,
+      tokenHash: hashRefreshToken(refreshToken),
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    }),
+    authRepository.touchLastLogin(user.id),
+  ]);
 
   return {
     accessToken,
     refreshToken,
-    user: {
-      id: user.id,
-      fullName: user.full_name,
-      email: user.email,
-      role: user.role,
-      avatarUrl: user.avatar_url,
-    },
+    user: sanitizeUser(user),
   };
 }
 
 async function refresh(refreshToken) {
-  if (!refreshToken) throw new Error("Missing refresh token");
+  if (!refreshToken) {
+    throw new AppError(401, "Missing refresh token");
+  }
 
   const decoded = verifyRefreshToken(refreshToken);
-  const tokenHash = hashRefreshToken(refreshToken);
-  const tokenRow = await repo.findActiveRefreshTokenByHash(tokenHash);
-  if (!tokenRow) throw new Error("Refresh token is invalid");
+  const tokenRow = await authRepository.findActiveRefreshTokenByHash(
+    hashRefreshToken(refreshToken)
+  );
 
-  const userId = Number(decoded.sub);
-  const user = await repo.findUserById(userId);
-  if (!user) throw new Error("User not found");
+  if (!tokenRow) {
+    throw new AppError(401, "Refresh token is invalid");
+  }
 
-  const accessToken = signAccessToken({
-    userId: user.id,
-    email: user.email,
-    role: user.role,
-  });
+  const user = await authRepository.findUserById(Number(decoded.sub));
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
 
   return {
-    accessToken,
-    user: {
-      id: user.id,
-      fullName: user.full_name,
+    accessToken: signAccessToken({
+      userId: user.id,
       email: user.email,
       role: user.role,
-      avatarUrl: user.avatar_url,
-    },
+    }),
+    user: sanitizeUser(user),
   };
 }
 
 async function logout(refreshToken) {
   if (!refreshToken) return;
-  const tokenHash = hashRefreshToken(refreshToken);
-  await repo.revokeRefreshTokenByHash(tokenHash);
+  await authRepository.revokeRefreshTokenByHash(hashRefreshToken(refreshToken));
+}
+
+async function getCurrentUser(userId) {
+  const user = await authRepository.findUserById(userId);
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+  return sanitizeUser(user);
 }
 
 module.exports = {
-  register,
+  registerPatient,
   login,
   refresh,
   logout,
+  getCurrentUser,
 };

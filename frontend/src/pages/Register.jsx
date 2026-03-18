@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Phone, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -9,149 +9,164 @@ import { Input } from "../components/ui/Input";
 
 export default function Register() {
   const navigate = useNavigate();
-  const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     fullName: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
   });
 
-  const passwordOk = form.password.length >= 8;
-  const matchOk = form.password && form.password === form.confirmPassword;
   const canSubmit = useMemo(
-    () => form.fullName.trim().length >= 2 && form.email.includes("@") && passwordOk && matchOk,
-    [form, passwordOk, matchOk]
+    () =>
+      form.fullName.trim().length >= 2 &&
+      form.email.includes("@") &&
+      form.password.length >= 8 &&
+      form.password === form.confirmPassword,
+    [form]
   );
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    if (!canSubmit || loading) return;
-    setLoading(true);
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!canSubmit || submitting) return;
+
+    setSubmitting(true);
     try {
-      await register({ fullName: form.fullName, email: form.email, password: form.password });
-      toast.success("Account created. Please sign in.");
+      await register({
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone || undefined,
+        password: form.password,
+      });
+      toast.success("Patient account created. You can sign in now.");
       navigate("/login");
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Registration failed");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Unable to register");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950">
-      <div className="mx-auto flex min-h-screen max-w-[1100px] items-center justify-center">
-        <div className="w-full max-w-md">
-          <div className="mb-6">
-            <div className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              Create your account
-            </div>
-            <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Patients can book instantly. Doctors and admins are provisioned by an admin.
-            </div>
+    <div className="min-h-screen bg-shell">
+      <div className="absolute inset-0 bg-shell-pattern opacity-80" />
+      <div className="relative flex min-h-screen items-center justify-center p-6 sm:p-10">
+        <Card className="w-full max-w-2xl p-8">
+          <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
+            Patient onboarding
           </div>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
+            Create your patient portal account
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            Doctors, admins, and receptionists are provisioned through admin operations. Patients
+            can self-register here for appointments, records, reports, and billing.
+          </p>
 
-          <Card className="p-6">
-            <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
               <label className="block">
-                <div className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Full name
                 </div>
                 <div className="relative">
-                  <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     value={form.fullName}
-                    onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
-                    placeholder="Alex Morgan"
-                    className="pl-10"
-                    autoComplete="name"
-                    required
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, fullName: event.target.value }))
+                    }
+                    className="pl-11"
+                    placeholder="Maya Rao"
                   />
                 </div>
               </label>
 
               <label className="block">
-                <div className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  Email
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Phone
                 </div>
                 <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                    placeholder="name@clinic.com"
-                    className="pl-10"
-                    autoComplete="email"
-                    required
+                    value={form.phone}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, phone: event.target.value }))
+                    }
+                    className="pl-11"
+                    placeholder="+91 90000 00000"
                   />
                 </div>
               </label>
+            </div>
 
+            <label className="block">
+              <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Email
+              </div>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                  className="pl-11"
+                  placeholder="patient@hospital.com"
+                />
+              </div>
+            </label>
+
+            <div className="grid gap-5 md:grid-cols-2">
               <label className="block">
-                <div className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Password
                 </div>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
-                    type={show ? "text" : "password"}
+                    type={showPassword ? "text" : "password"}
                     value={form.password}
-                    onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, password: event.target.value }))
+                    }
+                    className="pr-11"
                     placeholder="At least 8 characters"
-                    className="pl-10 pr-10"
-                    autoComplete="new-password"
-                    required
                   />
                   <button
                     type="button"
-                    onClick={() => setShow((s) => !s)}
-                    className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-900/60 dark:hover:text-slate-200"
-                    aria-label={show ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900"
                   >
-                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
-                </div>
-                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  {passwordOk ? "Looks good." : "Use 8+ characters."}
                 </div>
               </label>
 
               <label className="block">
-                <div className="mb-1 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Confirm password
                 </div>
                 <Input
-                  type={show ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   value={form.confirmPassword}
-                  onChange={(e) => setForm((p) => ({ ...p, confirmPassword: e.target.value }))}
-                  placeholder="Re-enter password"
-                  autoComplete="new-password"
-                  required
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, confirmPassword: event.target.value }))
+                  }
+                  placeholder="Repeat the password"
                 />
-                {form.confirmPassword ? (
-                  <div
-                    className={`mt-2 text-xs ${
-                      matchOk
-                        ? "text-tealish-700 dark:text-tealish-300"
-                        : "text-rose-600 dark:text-rose-400"
-                    }`}
-                  >
-                    {matchOk ? "Passwords match." : "Passwords don’t match."}
-                  </div>
-                ) : null}
               </label>
+            </div>
 
-              <Button type="submit" className="w-full" loading={loading} disabled={!canSubmit}>
-                Create account
-              </Button>
-            </form>
-          </Card>
+            <Button type="submit" className="w-full" loading={submitting} disabled={!canSubmit}>
+              Create patient account
+            </Button>
+          </form>
 
-          <div className="mt-5 text-center text-sm text-slate-600 dark:text-slate-400">
-            Already have an account?{" "}
+          <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+            Already have access?{" "}
             <Link
               to="/login"
               className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
@@ -159,7 +174,7 @@ export default function Register() {
               Sign in
             </Link>
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

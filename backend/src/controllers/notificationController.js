@@ -1,45 +1,27 @@
-const pool = require("../config/db");
+const { z } = require("zod");
+const notificationRepository = require("../repositories/notificationRepository");
+const { asyncHandler } = require("../middlewares/asyncHandler");
 
-async function listMyNotifications(req, res) {
-  try {
-    const userId = req.user.id;
-    const result = await pool.query(
-      `
-      SELECT *
-      FROM notifications
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT 50
-      `,
-      [userId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching notifications:", error.message);
-    res.status(500).json({ message: "Failed to fetch notifications" });
+const listNotifications = asyncHandler(async (req, res) => {
+  res.json(await notificationRepository.listNotifications(req.user.id));
+});
+
+const markRead = asyncHandler(async (req, res) => {
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  const result = await notificationRepository.markRead(params.id, req.user.id);
+  if (!result) {
+    return res.status(404).json({ message: "Notification not found" });
   }
-}
+  return res.json(result);
+});
 
-async function markRead(req, res) {
-  try {
-    const userId = req.user.id;
-    const id = Number(req.params.id);
-    const result = await pool.query(
-      `
-      UPDATE notifications
-      SET read_at = now()
-      WHERE id = $1 AND user_id = $2
-      RETURNING *
-      `,
-      [id, userId]
-    );
-    if (!result.rows[0]) return res.status(404).json({ message: "Not found" });
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Error marking read:", error.message);
-    res.status(500).json({ message: "Failed to update notification" });
-  }
-}
+const markAllRead = asyncHandler(async (req, res) => {
+  await notificationRepository.markAllRead(req.user.id);
+  res.status(204).send();
+});
 
-module.exports = { listMyNotifications, markRead };
-
+module.exports = {
+  listNotifications,
+  markRead,
+  markAllRead,
+};

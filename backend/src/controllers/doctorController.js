@@ -1,47 +1,74 @@
-const pool = require("../config/db");
+const { z } = require("zod");
+const doctorService = require("../services/doctorService");
+const { asyncHandler } = require("../middlewares/asyncHandler");
 
-async function getAllDoctors(req, res) {
-  try {
-    const search = (req.query.search || "").toString().trim();
-    const specialization = (req.query.specialization || "").toString().trim();
+const listDoctorsQuery = z.object({
+  search: z.string().optional().default(""),
+  specialization: z.string().optional().default(""),
+  minExperience: z.coerce.number().int().min(0).optional().default(0),
+  minRating: z.coerce.number().min(0).max(5).optional().default(0),
+  sort: z.enum(["rating", "experience", "fee"]).optional().default("rating"),
+});
 
-    const where = [];
-    const params = [];
-    if (search) {
-      params.push(`%${search}%`);
-      where.push(`(u.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
-    }
-    if (specialization) {
-      params.push(specialization);
-      where.push(`d.specialization = $${params.length}`);
-    }
+const availabilityQuery = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
-    const sql = `
-      SELECT
-        u.id,
-        u.full_name,
-        u.email,
-        u.avatar_url,
-        d.specialization,
-        d.experience_years,
-        d.rating,
-        d.bio
-      FROM users u
-      JOIN doctors d ON d.user_id = u.id
-      WHERE u.role = 'doctor'
-      ${where.length ? `AND ${where.join(" AND ")}` : ""}
-      ORDER BY d.rating DESC, u.full_name ASC
-    `;
+const availabilityRulesSchema = z.object({
+  rules: z.array(
+    z.object({
+      weekday: z.number().int().min(0).max(6),
+      startTime: z.string().regex(/^\d{2}:\d{2}$/),
+      endTime: z.string().regex(/^\d{2}:\d{2}$/),
+      slotMinutes: z.number().int().refine((value) => [15, 20, 30, 45, 60].includes(value)),
+    })
+  ),
+});
 
-    const result = await pool.query(sql, params);
+const timeOffSchema = z.object({
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  reason: z.string().max(400).optional(),
+});
 
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching doctors:", error.message);
-    res.status(500).json({ message: "Failed to fetch doctors" });
-  }
-}
+const listDoctors = asyncHandler(async (req, res) => {
+  const query = listDoctorsQuery.parse(req.query);
+  const doctors = await doctorService.listDoctors(query);
+  res.json(doctors);
+});
+
+const getAvailability = asyncHandler(async (req, res) => {
+  const params = z.object({ doctorId: z.coerce.number().int().positive() }).parse(req.params);
+  const query = availabilityQuery.parse(req.query);
+  const result = await doctorService.getAvailabilityForDate(params.doctorId, query.date);
+  res.json(result);
+});
+
+const getMyAvailability = asyncHandler(async (req, res) => {
+  res.json(await doctorService.listMyAvailability(req.user));
+});
+
+const updateMyAvailability = asyncHandler(async (req, res) => {
+  const payload = availabilityRulesSchema.parse(req.body);
+  await doctorService.updateMyAvailability(req.user, payload.rules);
+  res.status(204).send();
+});
+
+const listMyTimeOff = asyncHandler(async (req, res) => {
+  res.json(await doctorService.listMyTimeOff(req.user));
+});
+
+const addTimeOff = asyncHandler(async (req, res) => {
+  const payload = timeOffSchema.parse(req.body);
+  const result = await doctorService.addTimeOff(req.user, payload);
+  res.status(201).json(result);
+});
 
 module.exports = {
-  getAllDoctors,
+  listDoctors,
+  getAvailability,
+  getMyAvailability,
+  updateMyAvailability,
+  listMyTimeOff,
+  addTimeOff,
 };

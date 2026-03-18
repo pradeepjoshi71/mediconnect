@@ -1,48 +1,52 @@
 import axios from "axios";
-import { getAccessToken, setAccessToken, clearSession } from "./session";
+import { clearSession, getAccessToken, setAccessToken, setUser } from "./session";
 
 const api = axios.create({
   baseURL: "/api/v1",
   withCredentials: true,
-  timeout: 15000,
+  timeout: 20000,
 });
 
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
-let refreshing = null;
-api.interceptors.response.use(
-  (r) => r,
-  async (error) => {
-    const original = error.config;
-    const status = error.response?.status;
-    if (!original || original._retry) throw error;
+let refreshPromise = null;
 
-    if (status === 401) {
-      original._retry = true;
-      try {
-        if (!refreshing) {
-          refreshing = api.post("/auth/refresh").then((res) => {
-            setAccessToken(res.data.accessToken);
-            return res.data.accessToken;
-          });
-        }
-        await refreshing;
-        refreshing = null;
-        return api(original);
-      } catch (e) {
-        refreshing = null;
-        clearSession();
-        throw e;
-      }
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const status = error.response?.status;
+
+    if (!originalRequest || originalRequest._retry || status !== 401) {
+      throw error;
     }
 
-    throw error;
+    originalRequest._retry = true;
+
+    try {
+      if (!refreshPromise) {
+        refreshPromise = api.post("/auth/refresh").then((response) => {
+          setAccessToken(response.data.accessToken);
+          setUser(response.data.user);
+          return response.data.accessToken;
+        });
+      }
+
+      await refreshPromise;
+      refreshPromise = null;
+      return api(originalRequest);
+    } catch (refreshError) {
+      refreshPromise = null;
+      clearSession();
+      throw refreshError;
+    }
   }
 );
 
 export default api;
-

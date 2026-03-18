@@ -1,12 +1,12 @@
-import { Navigate } from "react-router-dom";
-import { getAccessToken } from "../services/session";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { hasSession } from "../services/session";
 
 export default function ProtectedRoute({ children }) {
-  const token = getAccessToken();
+  const location = useLocation();
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
+  if (!hasSession()) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  return children;
+  return children || <Outlet />;
 }

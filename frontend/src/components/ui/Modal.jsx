@@ -17,13 +17,13 @@ export function Modal({ open, onClose, title, children, className }) {
   return (
     <div className="fixed inset-0 z-50">
       <div
-        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
         onClick={() => onClose?.()}
       />
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
           className={cn(
-            "w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-card dark:border-slate-800 dark:bg-slate-950",
+            "w-full max-w-3xl rounded-[32px] border border-white/70 bg-white/95 shadow-card backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95",
             className
           )}
           role="dialog"
@@ -31,7 +31,7 @@ export function Modal({ open, onClose, title, children, className }) {
         >
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
             <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 {title}
               </div>
             </div>
@@ -49,4 +49,3 @@ export function Modal({ open, onClose, title, children, className }) {
     </div>
   );
 }
-

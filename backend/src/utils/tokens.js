@@ -11,6 +11,8 @@ function signAccessToken({ userId, email, role }) {
 
   return jwt.sign({ sub: String(userId), email, role }, secret, {
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+    issuer: "mediconnect-api",
+    audience: "mediconnect-clients",
   });
 }
 
@@ -20,19 +22,27 @@ function signRefreshToken({ userId }) {
 
   return jwt.sign({ sub: String(userId), typ: "refresh" }, secret, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d",
+    issuer: "mediconnect-api",
+    audience: "mediconnect-clients",
   });
 }
 
 function verifyAccessToken(token) {
   const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_ACCESS_SECRET is not set");
-  return jwt.verify(token, secret);
+  return jwt.verify(token, secret, {
+    issuer: "mediconnect-api",
+    audience: "mediconnect-clients",
+  });
 }
 
 function verifyRefreshToken(token) {
   const secret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_REFRESH_SECRET is not set");
-  return jwt.verify(token, secret);
+  return jwt.verify(token, secret, {
+    issuer: "mediconnect-api",
+    audience: "mediconnect-clients",
+  });
 }
 
 function hashRefreshToken(token) {
@@ -45,7 +55,7 @@ function refreshCookieOptions() {
     httpOnly: true,
     sameSite: isProd ? "strict" : "lax",
     secure: isProd,
-    path: "/api/v1/auth/refresh",
+    path: "/api/v1/auth",
     maxAge: 1000 * 60 * 60 * 24 * 30,
   };
 }
@@ -58,4 +68,3 @@ module.exports = {
   hashRefreshToken,
   refreshCookieOptions,
 };
-

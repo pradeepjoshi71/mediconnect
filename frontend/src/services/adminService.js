@@ -1,17 +1,11 @@
 import api from "./apiClient";
 
 export async function listUsers() {
-  const res = await api.get("/admin/users");
-  return res.data;
+  const response = await api.get("/admin/users");
+  return response.data;
 }
 
-export async function listAllAppointments() {
-  const res = await api.get("/admin/appointments");
-  return res.data;
+export async function createStaff(payload) {
+  const response = await api.post("/admin/staff", payload);
+  return response.data;
 }
-
-export async function createDoctor(payload) {
-  const res = await api.post("/admin/doctors", payload);
-  return res.data;
-}
-

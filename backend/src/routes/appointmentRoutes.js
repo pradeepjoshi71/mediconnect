@@ -1,34 +1,21 @@
 const express = require("express");
-const router = express.Router();
-const {
-  bookAppointment,
-  listMyAppointments,
-  cancelAppointment,
-  rescheduleAppointment,
-  updateStatus,
-} = require("../controllers/appointmentController");
+const appointmentController = require("../controllers/appointmentController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const roleMiddleware = require("../middlewares/roleMiddleware");
 
-router.get("/mine", authMiddleware, listMyAppointments);
-router.post("/", authMiddleware, roleMiddleware("patient", "admin"), bookAppointment);
+const router = express.Router();
+
+router.get("/", authMiddleware, appointmentController.listAppointments);
+router.get("/queue", authMiddleware, appointmentController.getQueue);
+router.get("/waitlist", authMiddleware, appointmentController.listWaitlist);
+router.post("/", authMiddleware, appointmentController.bookAppointment);
 router.post(
-  "/:id/cancel",
+  "/waitlist",
   authMiddleware,
-  roleMiddleware("patient", "admin"),
-  cancelAppointment
+  roleMiddleware("patient", "admin", "receptionist"),
+  appointmentController.createWaitlist
 );
-router.post(
-  "/:id/reschedule",
-  authMiddleware,
-  roleMiddleware("patient", "admin"),
-  rescheduleAppointment
-);
-router.post(
-  "/:id/status",
-  authMiddleware,
-  roleMiddleware("doctor", "admin"),
-  updateStatus
-);
+router.patch("/:id/reschedule", authMiddleware, appointmentController.rescheduleAppointment);
+router.patch("/:id/status", authMiddleware, appointmentController.updateAppointmentStatus);
 
 module.exports = router;

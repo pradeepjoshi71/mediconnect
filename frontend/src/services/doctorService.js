@@ -1,16 +1,32 @@
 import api from "./apiClient";
 
-export async function listDoctors({ search, specialization } = {}) {
-  const res = await api.get("/doctors", { params: { search, specialization } });
-  return res.data;
+export async function listDoctors(params = {}) {
+  const response = await api.get("/doctors", { params });
+  return response.data;
 }
 
-const API = "http://localhost:5000";
+export async function getDoctorAvailability(doctorId, date) {
+  const response = await api.get(`/doctors/${doctorId}/availability`, {
+    params: { date },
+  });
+  return response.data;
+}
 
-export async function getDoctors(){
+export async function getMyAvailability() {
+  const response = await api.get("/doctors/me/availability");
+  return response.data;
+}
 
-  const res = await fetch(`${API}/doctors`);
+export async function updateMyAvailability(rules) {
+  await api.put("/doctors/me/availability", { rules });
+}
 
-  return res.json();
+export async function listMyTimeOff() {
+  const response = await api.get("/doctors/me/time-off");
+  return response.data;
+}
 
+export async function addMyTimeOff(payload) {
+  const response = await api.post("/doctors/me/time-off", payload);
+  return response.data;
 }

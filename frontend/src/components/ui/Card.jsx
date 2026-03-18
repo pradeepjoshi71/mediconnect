@@ -4,8 +4,8 @@ export function Card({ className, ...props }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200/70 bg-white shadow-card",
-        "dark:border-slate-800/60 dark:bg-slate-950",
+        "rounded-[28px] border border-white/70 bg-white/90 shadow-card backdrop-blur-xl",
+        "dark:border-slate-800/60 dark:bg-slate-950/85",
         className
       )}
       {...props}
@@ -41,4 +41,3 @@ export function CardDescription({ className, ...props }) {
 export function CardContent({ className, ...props }) {
   return <div className={cn("p-6 pt-3", className)} {...props} />;
 }
-

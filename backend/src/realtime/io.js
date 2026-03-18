@@ -1,3 +1,5 @@
+const { verifyAccessToken } = require("../utils/tokens");
+
 let io = null;
 
 function setIO(serverIO) {
@@ -9,10 +11,27 @@ function getIO() {
   return io;
 }
 
+function attachSocketHandlers(socket) {
+  socket.on("auth:identify", ({ token }) => {
+    if (!token) return;
+
+    try {
+      const decoded = verifyAccessToken(token);
+      socket.join(`user:${decoded.sub}`);
+    } catch (_error) {
+      socket.emit("auth:error", { message: "Invalid realtime token" });
+    }
+  });
+}
+
 function safeEmitToUser(userId, event, payload) {
-  if (!io) return;
+  if (!io || !userId) return;
   io.to(`user:${userId}`).emit(event, payload);
 }
 
-module.exports = { setIO, getIO, safeEmitToUser };
-
+module.exports = {
+  setIO,
+  getIO,
+  attachSocketHandlers,
+  safeEmitToUser,
+};
