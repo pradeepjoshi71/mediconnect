@@ -1,0 +1,22 @@
+{
+  "name": "mediconnect-backend",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^4.22.1",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "morgan": "^1.10.1",
+    "pg": "^8.20.0",
+    "socket.io": "^4.8.1",
+    "zod": "^4.1.5"
+  }
+}
