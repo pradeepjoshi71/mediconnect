@@ -1,5 +1,7 @@
 const bcrypt = require("bcrypt");
 const authRepository = require("../repositories/authRepository");
+const hospitalService = require("./hospitalService");
+const auditService = require("./auditService");
 const {
   signAccessToken,
   signRefreshToken,
@@ -8,8 +10,8 @@ const {
 } = require("../utils/tokens");
 const { AppError } = require("../utils/http");
 
-function generateMedicalRecordNumber() {
-  return `MRN-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+function generateMedicalRecordNumber(hospitalCode) {
+  return `MRN-${hospitalCode}-${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
 function sanitizeUser(user) {
@@ -21,6 +23,11 @@ function sanitizeUser(user) {
     role: user.role,
     status: user.status,
     avatarUrl: user.avatarUrl,
+    hospitalId: user.hospitalId,
+    hospitalCode: user.hospitalCode,
+    hospitalSlug: user.hospitalSlug,
+    hospitalName: user.hospitalName,
+    hospitalTimezone: user.hospitalTimezone,
     patientProfileId: user.patientProfileId,
     doctorProfileId: user.doctorProfileId,
     medicalRecordNumber: user.medicalRecordNumber,
@@ -31,34 +38,51 @@ function sanitizeUser(user) {
 }
 
 async function registerPatient({
+  hospitalCode,
   fullName,
   email,
   password,
   phone,
   dateOfBirth,
   gender,
+  auditContext,
 }) {
-  const existing = await authRepository.findUserByEmail(email);
+  const hospital = await hospitalService.resolveHospital(hospitalCode);
+  const existing = await authRepository.findUserByEmail(email, hospital.id);
   if (existing) {
     throw new AppError(409, "An account with that email already exists");
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await authRepository.createPatientUser({
+    hospitalId: hospital.id,
     fullName,
     email,
     passwordHash,
     phone,
-    medicalRecordNumber: generateMedicalRecordNumber(),
+    medicalRecordNumber: generateMedicalRecordNumber(hospital.code),
     dateOfBirth,
     gender,
+  });
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "auth.register.patient",
+    entityType: "user",
+    entityId: user.id,
+    metadata: {
+      email: user.email,
+      hospitalCode: user.hospitalCode,
+    },
+    context: auditContext,
   });
 
   return sanitizeUser(user);
 }
 
-async function login(email, password) {
-  const user = await authRepository.findUserByEmail(email);
+async function login(email, password, { hospitalCode, auditContext } = {}) {
+  const hospital = await hospitalService.resolveHospital(hospitalCode);
+  const user = await authRepository.findUserByEmail(email, hospital.id);
   if (!user) {
     throw new AppError(401, "Invalid credentials");
   }
@@ -72,16 +96,34 @@ async function login(email, password) {
     userId: user.id,
     email: user.email,
     role: user.role,
+    hospitalId: user.hospitalId,
+    hospitalCode: user.hospitalCode,
   });
-  const refreshToken = signRefreshToken({ userId: user.id });
+  const refreshToken = signRefreshToken({
+    userId: user.id,
+    hospitalId: user.hospitalId,
+    hospitalCode: user.hospitalCode,
+  });
 
   await Promise.all([
     authRepository.insertRefreshToken({
+      hospitalId: user.hospitalId,
       userId: user.id,
       tokenHash: hashRefreshToken(refreshToken),
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
     }),
     authRepository.touchLastLogin(user.id),
+    auditService.recordAuditEvent({
+      user,
+      action: "auth.login.success",
+      entityType: "user",
+      entityId: user.id,
+      metadata: {
+        email: user.email,
+        hospitalCode: user.hospitalCode,
+      },
+      context: auditContext,
+    }),
   ]);
 
   return {
@@ -115,6 +157,8 @@ async function refresh(refreshToken) {
       userId: user.id,
       email: user.email,
       role: user.role,
+      hospitalId: user.hospitalId,
+      hospitalCode: user.hospitalCode,
     }),
     user: sanitizeUser(user),
   };

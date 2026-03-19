@@ -18,6 +18,9 @@ function attachSocketHandlers(socket) {
     try {
       const decoded = verifyAccessToken(token);
       socket.join(`user:${decoded.sub}`);
+      if (decoded.hospitalId) {
+        socket.join(`hospital:${decoded.hospitalId}`);
+      }
     } catch (_error) {
       socket.emit("auth:error", { message: "Invalid realtime token" });
     }
@@ -29,9 +32,15 @@ function safeEmitToUser(userId, event, payload) {
   io.to(`user:${userId}`).emit(event, payload);
 }
 
+function safeEmitToHospital(hospitalId, event, payload) {
+  if (!io || !hospitalId) return;
+  io.to(`hospital:${hospitalId}`).emit(event, payload);
+}
+
 module.exports = {
   setIO,
   getIO,
   attachSocketHandlers,
   safeEmitToUser,
+  safeEmitToHospital,
 };

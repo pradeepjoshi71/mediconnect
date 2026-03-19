@@ -9,7 +9,7 @@ const listPatients = asyncHandler(async (req, res) => {
 
 const getPatientSummary = asyncHandler(async (req, res) => {
   const params = z.object({ patientId: z.coerce.number().int().positive() }).parse(req.params);
-  res.json(await patientService.getPatientSummary(req.user, params.patientId));
+  res.json(await patientService.getPatientSummary(req.user, params.patientId, req.auditContext));
 });
 
 module.exports = {

@@ -1,6 +1,7 @@
 const db = require("../config/db");
 
 async function createNotification({
+  hospitalId,
   userId,
   channel,
   eventType,
@@ -12,6 +13,7 @@ async function createNotification({
   const result = await db.query(
     `
       INSERT INTO notifications (
+        hospital_id,
         user_id,
         channel,
         event_type,
@@ -20,9 +22,10 @@ async function createNotification({
         data,
         status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING
         id,
+        hospital_id AS "hospitalId",
         user_id AS "userId",
         channel,
         event_type AS "eventType",
@@ -33,16 +36,17 @@ async function createNotification({
         read_at AS "readAt",
         created_at AS "createdAt"
     `,
-    [userId, channel, eventType, title, body || null, data || {}, status || "sent"]
+    [hospitalId, userId, channel, eventType, title, body || null, data || {}, status || "sent"]
   );
   return result.rows[0];
 }
 
-async function listNotifications(userId) {
+async function listNotifications(hospitalId, userId) {
   const result = await db.query(
     `
       SELECT
         id,
+        hospital_id AS "hospitalId",
         user_id AS "userId",
         channel,
         event_type AS "eventType",
@@ -53,16 +57,17 @@ async function listNotifications(userId) {
         read_at AS "readAt",
         created_at AS "createdAt"
       FROM notifications
-      WHERE user_id = $1
+      WHERE hospital_id = $1
+        AND user_id = $2
       ORDER BY created_at DESC
       LIMIT 100
     `,
-    [userId]
+    [hospitalId, userId]
   );
   return result.rows;
 }
 
-async function markRead(id, userId) {
+async function markRead(id, hospitalId, userId) {
   const result = await db.query(
     `
       UPDATE notifications
@@ -70,9 +75,11 @@ async function markRead(id, userId) {
         read_at = now(),
         status = 'read'
       WHERE id = $1
-        AND user_id = $2
+        AND hospital_id = $2
+        AND user_id = $3
       RETURNING
         id,
+        hospital_id AS "hospitalId",
         user_id AS "userId",
         channel,
         event_type AS "eventType",
@@ -83,22 +90,23 @@ async function markRead(id, userId) {
         read_at AS "readAt",
         created_at AS "createdAt"
     `,
-    [id, userId]
+    [id, hospitalId, userId]
   );
   return result.rows[0] || null;
 }
 
-async function markAllRead(userId) {
+async function markAllRead(hospitalId, userId) {
   await db.query(
     `
       UPDATE notifications
       SET
         read_at = now(),
         status = 'read'
-      WHERE user_id = $1
+      WHERE hospital_id = $1
+        AND user_id = $2
         AND read_at IS NULL
     `,
-    [userId]
+    [hospitalId, userId]
   );
 }
 

@@ -1,10 +1,11 @@
 const db = require("../config/db");
 
-async function findPatientById(id) {
+async function findPatientById(id, hospitalId) {
   const result = await db.query(
     `
       SELECT
         p.id,
+        p.hospital_id AS "hospitalId",
         p.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,
@@ -23,18 +24,20 @@ async function findPatientById(id) {
       FROM patients p
       JOIN users u ON u.id = p.user_id
       WHERE p.id = $1
+        AND p.hospital_id = $2
       LIMIT 1
     `,
-    [id]
+    [id, hospitalId]
   );
   return result.rows[0] || null;
 }
 
-async function findPatientByUserId(userId) {
+async function findPatientByUserId(userId, hospitalId) {
   const result = await db.query(
     `
       SELECT
         p.id,
+        p.hospital_id AS "hospitalId",
         p.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,
@@ -53,16 +56,17 @@ async function findPatientByUserId(userId) {
       FROM patients p
       JOIN users u ON u.id = p.user_id
       WHERE p.user_id = $1
+        AND p.hospital_id = $2
       LIMIT 1
     `,
-    [userId]
+    [userId, hospitalId]
   );
   return result.rows[0] || null;
 }
 
-async function listPatients(search = "") {
-  const params = [];
-  const where = [];
+async function listPatients(hospitalId, search = "") {
+  const params = [hospitalId];
+  const where = [`p.hospital_id = $1`];
 
   if (search) {
     params.push(`%${search}%`);
@@ -75,6 +79,7 @@ async function listPatients(search = "") {
     `
       SELECT
         p.id,
+        p.hospital_id AS "hospitalId",
         p.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,

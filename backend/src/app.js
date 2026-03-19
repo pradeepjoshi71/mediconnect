@@ -4,6 +4,8 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
+const db = require("./config/db");
+const { pingRedis } = require("./config/redis");
 
 const authRoutes = require("./routes/authRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
@@ -17,6 +19,7 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const telemedicineRoutes = require("./routes/telemedicineRoutes");
+const intelligenceRoutes = require("./routes/intelligenceRoutes");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -57,7 +60,7 @@ app.use(
   })
 );
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(
   rateLimit({
@@ -80,6 +83,28 @@ app.get("/api/v1/health", (_req, res) => {
   res.json({ status: "ok", service: "backend" });
 });
 
+app.get("/api/v1/health/ready", async (_req, res) => {
+  let database = { status: "error" };
+  try {
+    await db.query("SELECT 1");
+    database = { status: "ready" };
+  } catch (error) {
+    database = { status: "error", error: error.message };
+  }
+
+  const redis = await pingRedis();
+  const ready = database.status === "ready" && ["ready", "disabled"].includes(redis.status);
+
+  res.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "degraded",
+    service: "backend",
+    checks: {
+      database,
+      redis,
+    },
+  });
+});
+
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/doctors", doctorRoutes);
@@ -91,6 +116,7 @@ app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/notifications", notificationRoutes);
 app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/intelligence", intelligenceRoutes);
 app.use("/api/v1/telemedicine", telemedicineRoutes);
 
 app.use(notFoundMiddleware);

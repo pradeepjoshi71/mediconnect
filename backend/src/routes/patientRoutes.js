@@ -11,6 +11,11 @@ router.get(
   roleMiddleware("doctor", "admin", "receptionist"),
   patientController.listPatients
 );
-router.get("/:patientId", authMiddleware, patientController.getPatientSummary);
+router.get(
+  "/:patientId",
+  authMiddleware,
+  roleMiddleware("patient", "doctor", "admin"),
+  patientController.getPatientSummary
+);
 
 module.exports = router;

@@ -33,14 +33,14 @@ const timeOffSchema = z.object({
 
 const listDoctors = asyncHandler(async (req, res) => {
   const query = listDoctorsQuery.parse(req.query);
-  const doctors = await doctorService.listDoctors(query);
+  const doctors = await doctorService.listDoctors(req.user, query);
   res.json(doctors);
 });
 
 const getAvailability = asyncHandler(async (req, res) => {
   const params = z.object({ doctorId: z.coerce.number().int().positive() }).parse(req.params);
   const query = availabilityQuery.parse(req.query);
-  const result = await doctorService.getAvailabilityForDate(params.doctorId, query.date);
+  const result = await doctorService.getAvailabilityForDate(req.user, params.doctorId, query.date);
   res.json(result);
 });
 
@@ -50,7 +50,7 @@ const getMyAvailability = asyncHandler(async (req, res) => {
 
 const updateMyAvailability = asyncHandler(async (req, res) => {
   const payload = availabilityRulesSchema.parse(req.body);
-  await doctorService.updateMyAvailability(req.user, payload.rules);
+  await doctorService.updateMyAvailability(req.user, payload.rules, req.auditContext);
   res.status(204).send();
 });
 
@@ -60,7 +60,7 @@ const listMyTimeOff = asyncHandler(async (req, res) => {
 
 const addTimeOff = asyncHandler(async (req, res) => {
   const payload = timeOffSchema.parse(req.body);
-  const result = await doctorService.addTimeOff(req.user, payload);
+  const result = await doctorService.addTimeOff(req.user, payload, req.auditContext);
   res.status(201).json(result);
 });
 

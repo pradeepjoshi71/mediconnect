@@ -29,7 +29,7 @@ const uploadSchema = z.object({
 
 const listFiles = asyncHandler(async (req, res) => {
   const query = querySchema.parse(req.query);
-  res.json(await fileService.listFiles(req.user, query));
+  res.json(await fileService.listFiles(req.user, query, req.auditContext));
 });
 
 const uploadFile = asyncHandler(async (req, res) => {
@@ -37,13 +37,13 @@ const uploadFile = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "File is required" });
   }
   const payload = uploadSchema.parse(req.body || {});
-  const result = await fileService.uploadFile(req.user, req.file, payload);
+  const result = await fileService.uploadFile(req.user, req.file, payload, req.auditContext);
   return res.status(201).json(result);
 });
 
 const downloadFile = asyncHandler(async (req, res) => {
   const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
-  const { file, filePath } = await fileService.downloadFile(req.user, params.id);
+  const { file, filePath } = await fileService.downloadFile(req.user, params.id, req.auditContext);
   res.setHeader("Content-Type", file.mime_type);
   res.setHeader(
     "Content-Disposition",

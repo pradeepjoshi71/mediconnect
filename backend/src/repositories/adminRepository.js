@@ -1,10 +1,11 @@
 const db = require("../config/db");
 
-async function listUsers() {
+async function listUsers(hospitalId) {
   const result = await db.query(
     `
       SELECT
         u.id,
+        u.hospital_id AS "hospitalId",
         u.full_name AS "fullName",
         u.email,
         u.phone,
@@ -20,15 +21,17 @@ async function listUsers() {
       JOIN roles r ON r.id = u.role_id
       LEFT JOIN doctors d ON d.user_id = u.id
       LEFT JOIN patients p ON p.user_id = u.id
+      WHERE u.hospital_id = $1
       ORDER BY u.created_at DESC
       LIMIT 200
-    `
+    `,
+    [hospitalId]
   );
   return result.rows;
 }
 
-async function getRoleIdByCode(code) {
-  const result = await db.query(
+async function getRoleIdByCode(code, queryable = db) {
+  const result = await queryable.query(
     `SELECT id FROM roles WHERE code = $1 LIMIT 1`,
     [code]
   );
@@ -36,6 +39,7 @@ async function getRoleIdByCode(code) {
 }
 
 async function createStaffUser({
+  hospitalId,
   fullName,
   email,
   passwordHash,
@@ -49,20 +53,21 @@ async function createStaffUser({
   consultationFeeCents,
 }) {
   return db.withTransaction(async (client) => {
-    const roleId = await getRoleIdByCode(role);
+    const roleId = await getRoleIdByCode(role, client);
     const userResult = await client.query(
       `
-        INSERT INTO users (role_id, full_name, email, password_hash, phone, status)
-        VALUES ($1, $2, $3, $4, $5, 'active')
+        INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone, status)
+        VALUES ($1, $2, $3, lower($4), $5, $6, 'active')
         RETURNING id
       `,
-      [roleId, fullName, email, passwordHash, phone || null]
+      [hospitalId, roleId, fullName, email, passwordHash, phone || null]
     );
 
     if (role === "doctor") {
       await client.query(
         `
           INSERT INTO doctors (
+            hospital_id,
             user_id,
             employee_code,
             specialization,
@@ -71,9 +76,10 @@ async function createStaffUser({
             experience_years,
             consultation_fee_cents
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `,
         [
+          hospitalId,
           userResult.rows[0].id,
           employeeCode,
           specialization,
@@ -89,6 +95,7 @@ async function createStaffUser({
       `
         SELECT
           u.id,
+          u.hospital_id AS "hospitalId",
           u.full_name AS "fullName",
           u.email,
           u.phone,

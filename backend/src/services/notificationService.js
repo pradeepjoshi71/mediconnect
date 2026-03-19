@@ -3,6 +3,7 @@ const { safeEmitToUser } = require("../realtime/io");
 const logger = require("../utils/logger");
 
 async function notifyUser({
+  hospitalId,
   userId,
   title,
   body,
@@ -14,6 +15,7 @@ async function notifyUser({
 
   for (const channel of channels) {
     const notification = await notificationRepository.createNotification({
+      hospitalId,
       userId,
       channel,
       eventType,

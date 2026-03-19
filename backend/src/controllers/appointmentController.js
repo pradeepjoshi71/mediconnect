@@ -49,7 +49,7 @@ const waitlistSchema = z.object({
 
 const bookAppointment = asyncHandler(async (req, res) => {
   const payload = bookingSchema.parse(req.body);
-  const result = await appointmentService.bookAppointment(req.user, payload);
+  const result = await appointmentService.bookAppointment(req.user, payload, req.auditContext);
   res.status(result.waitlist ? 202 : 201).json(result);
 });
 
@@ -68,18 +68,32 @@ const getQueue = asyncHandler(async (req, res) => {
 const rescheduleAppointment = asyncHandler(async (req, res) => {
   const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
   const payload = rescheduleSchema.parse(req.body);
-  res.json(await appointmentService.rescheduleAppointment(req.user, params.id, payload.startsAt));
+  res.json(
+    await appointmentService.rescheduleAppointment(
+      req.user,
+      params.id,
+      payload.startsAt,
+      req.auditContext
+    )
+  );
 });
 
 const updateAppointmentStatus = asyncHandler(async (req, res) => {
   const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
   const payload = statusSchema.parse(req.body);
-  res.json(await appointmentService.updateAppointmentStatus(req.user, params.id, payload));
+  res.json(
+    await appointmentService.updateAppointmentStatus(
+      req.user,
+      params.id,
+      payload,
+      req.auditContext
+    )
+  );
 });
 
 const createWaitlist = asyncHandler(async (req, res) => {
   const payload = waitlistSchema.parse(req.body);
-  const result = await appointmentService.createWaitlist(req.user, payload);
+  const result = await appointmentService.createWaitlist(req.user, payload, req.auditContext);
   res.status(201).json(result);
 });
 

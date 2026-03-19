@@ -1,5 +1,7 @@
 const doctorRepository = require("../repositories/doctorRepository");
 const appointmentRepository = require("../repositories/appointmentRepository");
+const { getJson, setJson } = require("../config/redis");
+const auditService = require("./auditService");
 const { AppError } = require("../utils/http");
 
 function parseTimeIntoDate(date, timeText) {
@@ -27,34 +29,47 @@ function isInsideTimeOff(slotStart, slotEnd, periods) {
   });
 }
 
-async function listDoctors(filters) {
-  return doctorRepository.listDoctors(filters);
+async function listDoctors(user, filters) {
+  return doctorRepository.listDoctors({
+    hospitalId: user.hospitalId,
+    ...filters,
+  });
 }
 
-async function getAvailabilityForDate(doctorId, date) {
-  const doctor = await doctorRepository.findDoctorById(doctorId);
+async function getAvailabilityForDate(user, doctorId, date) {
+  const cacheKey = `availability:${user.hospitalId}:${doctorId}:${date}`;
+  const cached = await getJson(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const doctor = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
   if (!doctor) {
     throw new AppError(404, "Doctor not found");
   }
 
   const targetDate = new Date(`${date}T00:00:00.000Z`);
   const weekday = targetDate.getUTCDay();
-  const rules = (await doctorRepository.listAvailabilityRules(doctorId)).filter(
+  const rules = (await doctorRepository.listAvailabilityRules(user.hospitalId, doctorId)).filter(
     (rule) => Number(rule.weekday) === weekday
   );
 
   if (!rules.length) {
-    return { doctor, slots: [] };
+    const emptyResult = { doctor, slots: [] };
+    await setJson(cacheKey, emptyResult, 60);
+    return emptyResult;
   }
 
   const { start, end } = dayBounds(date);
   const [appointments, timeOff] = await Promise.all([
     appointmentRepository.listDoctorAppointmentsBetween(
+      user.hospitalId,
       doctorId,
       start.toISOString(),
       end.toISOString()
     ),
     doctorRepository.listTimeOffInRange(
+      user.hospitalId,
       doctorId,
       start.toISOString(),
       end.toISOString()
@@ -91,35 +106,57 @@ async function getAvailabilityForDate(doctorId, date) {
     }
   }
 
-  return { doctor, slots };
+  const result = { doctor, slots };
+  await setJson(cacheKey, result, 60);
+  return result;
 }
 
-async function updateMyAvailability(user, rules) {
+async function updateMyAvailability(user, rules, context) {
   if (!user.doctorProfileId) {
     throw new AppError(403, "Doctor profile is required");
   }
-  await doctorRepository.replaceAvailabilityRules(user.doctorProfileId, rules);
+  await doctorRepository.replaceAvailabilityRules(user.hospitalId, user.doctorProfileId, rules);
+  await auditService.recordAuditEvent({
+    user,
+    action: "doctor.availability.update",
+    entityType: "doctor",
+    entityId: user.doctorProfileId,
+    metadata: { ruleCount: rules.length },
+    context,
+  });
 }
 
 async function listMyAvailability(user) {
   if (!user.doctorProfileId) {
     throw new AppError(403, "Doctor profile is required");
   }
-  return doctorRepository.listAvailabilityRules(user.doctorProfileId);
+  return doctorRepository.listAvailabilityRules(user.hospitalId, user.doctorProfileId);
 }
 
-async function addTimeOff(user, payload) {
+async function addTimeOff(user, payload, context) {
   if (!user.doctorProfileId) {
     throw new AppError(403, "Doctor profile is required");
   }
-  return doctorRepository.createTimeOff(user.doctorProfileId, payload);
+  const entry = await doctorRepository.createTimeOff(user.hospitalId, user.doctorProfileId, payload);
+  await auditService.recordAuditEvent({
+    user,
+    action: "doctor.time_off.create",
+    entityType: "doctor_time_off",
+    entityId: entry.id,
+    metadata: {
+      startsAt: payload.startsAt,
+      endsAt: payload.endsAt,
+    },
+    context,
+  });
+  return entry;
 }
 
 async function listMyTimeOff(user) {
   if (!user.doctorProfileId) {
     throw new AppError(403, "Doctor profile is required");
   }
-  return doctorRepository.listTimeOff(user.doctorProfileId);
+  return doctorRepository.listTimeOff(user.hospitalId, user.doctorProfileId);
 }
 
 module.exports = {

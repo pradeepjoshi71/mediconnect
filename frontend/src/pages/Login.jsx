@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
+import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -11,7 +11,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ hospitalCode: "MCH-BLR", email: "", password: "" });
 
   const canSubmit = useMemo(
     () => form.email.trim().length > 3 && form.password.trim().length > 0,
@@ -90,6 +90,23 @@ export default function Login() {
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <label className="block">
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Hospital code
+                </div>
+                <div className="relative">
+                  <Building2 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={form.hospitalCode}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, hospitalCode: event.target.value }))
+                    }
+                    className="pl-11"
+                    placeholder="MCH-BLR"
+                  />
+                </div>
+              </label>
+
               <label className="block">
                 <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Email

@@ -3,6 +3,7 @@ const db = require("../config/db");
 const USER_SELECT = `
   SELECT
     u.id,
+    u.hospital_id AS "hospitalId",
     u.full_name AS "fullName",
     u.email,
     u.phone,
@@ -11,6 +12,10 @@ const USER_SELECT = `
     u.password_hash AS "passwordHash",
     u.last_login_at AS "lastLoginAt",
     r.code AS role,
+    h.code AS "hospitalCode",
+    h.slug AS "hospitalSlug",
+    h.name AS "hospitalName",
+    h.timezone AS "hospitalTimezone",
     p.id AS "patientProfileId",
     p.medical_record_number AS "medicalRecordNumber",
     p.date_of_birth AS "dateOfBirth",
@@ -21,16 +26,18 @@ const USER_SELECT = `
     d.consultation_fee_cents AS "consultationFeeCents"
   FROM users u
   JOIN roles r ON r.id = u.role_id
+  JOIN hospitals h ON h.id = u.hospital_id
   LEFT JOIN patients p ON p.user_id = u.id
   LEFT JOIN doctors d ON d.user_id = u.id
 `;
 
-async function findUserByEmail(email) {
+async function findUserByEmail(email, hospitalId) {
   const result = await db.query(
     `${USER_SELECT}
      WHERE lower(u.email) = lower($1)
+       AND u.hospital_id = $2
      LIMIT 1`,
-    [email]
+    [email, hospitalId]
   );
   return result.rows[0] || null;
 }
@@ -45,8 +52,8 @@ async function findUserById(id) {
   return result.rows[0] || null;
 }
 
-async function getRoleIdByCode(code) {
-  const result = await db.query(
+async function getRoleIdByCode(code, queryable = db) {
+  const result = await queryable.query(
     `SELECT id FROM roles WHERE code = $1 LIMIT 1`,
     [code]
   );
@@ -54,6 +61,7 @@ async function getRoleIdByCode(code) {
 }
 
 async function createPatientUser({
+  hospitalId,
   fullName,
   email,
   passwordHash,
@@ -63,18 +71,19 @@ async function createPatientUser({
   gender,
 }) {
   return db.withTransaction(async (client) => {
-    const roleId = await getRoleIdByCode("patient");
+    const roleId = await getRoleIdByCode("patient", client);
     const userResult = await client.query(
-      `INSERT INTO users (role_id, full_name, email, password_hash, phone)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone)
+       VALUES ($1, $2, $3, lower($4), $5, $6)
        RETURNING id`,
-      [roleId, fullName, email, passwordHash, phone || null]
+      [hospitalId, roleId, fullName, email, passwordHash, phone || null]
     );
 
     await client.query(
-      `INSERT INTO patients (user_id, medical_record_number, date_of_birth, gender)
-       VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO patients (hospital_id, user_id, medical_record_number, date_of_birth, gender)
+       VALUES ($1, $2, $3, $4, $5)`,
       [
+        hospitalId,
         userResult.rows[0].id,
         medicalRecordNumber,
         dateOfBirth || null,
@@ -93,11 +102,11 @@ async function createPatientUser({
   });
 }
 
-async function insertRefreshToken({ userId, tokenHash, expiresAt }) {
+async function insertRefreshToken({ hospitalId, userId, tokenHash, expiresAt }) {
   await db.query(
-    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, tokenHash, expiresAt]
+    `INSERT INTO refresh_tokens (hospital_id, user_id, token_hash, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [hospitalId, userId, tokenHash, expiresAt]
   );
 }
 

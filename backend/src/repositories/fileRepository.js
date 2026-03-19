@@ -1,6 +1,7 @@
 const db = require("../config/db");
 
 async function createFileRecord({
+  hospitalId,
   patientId,
   appointmentId,
   medicalRecordId,
@@ -15,6 +16,7 @@ async function createFileRecord({
   const result = await db.query(
     `
       INSERT INTO files (
+        hospital_id,
         patient_id,
         appointment_id,
         medical_record_id,
@@ -26,9 +28,10 @@ async function createFileRecord({
         byte_size,
         access_scope
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING
         id,
+        hospital_id AS "hospitalId",
         patient_id AS "patientId",
         appointment_id AS "appointmentId",
         medical_record_id AS "medicalRecordId",
@@ -42,6 +45,7 @@ async function createFileRecord({
         created_at AS "createdAt"
     `,
     [
+      hospitalId,
       patientId || null,
       appointmentId || null,
       medicalRecordId || null,
@@ -57,9 +61,9 @@ async function createFileRecord({
   return result.rows[0];
 }
 
-async function listFiles({ patientId, appointmentId, medicalRecordId } = {}) {
-  const where = [];
-  const params = [];
+async function listFiles({ hospitalId, patientId, appointmentId, medicalRecordId } = {}) {
+  const where = [`f.hospital_id = $1`];
+  const params = [hospitalId];
 
   if (patientId) {
     params.push(patientId);
@@ -78,6 +82,7 @@ async function listFiles({ patientId, appointmentId, medicalRecordId } = {}) {
     `
       SELECT
         f.id,
+        f.hospital_id AS "hospitalId",
         f.patient_id AS "patientId",
         f.appointment_id AS "appointmentId",
         f.medical_record_id AS "medicalRecordId",
@@ -101,7 +106,7 @@ async function listFiles({ patientId, appointmentId, medicalRecordId } = {}) {
   return result.rows;
 }
 
-async function findFileById(id) {
+async function findFileById(id, hospitalId) {
   const result = await db.query(
     `
       SELECT
@@ -110,9 +115,10 @@ async function findFileById(id) {
       FROM files f
       LEFT JOIN patients p ON p.id = f.patient_id
       WHERE f.id = $1
+        AND f.hospital_id = $2
       LIMIT 1
     `,
-    [id]
+    [id, hospitalId]
   );
   return result.rows[0] || null;
 }

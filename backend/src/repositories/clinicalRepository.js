@@ -1,10 +1,11 @@
 const db = require("../config/db");
 
-async function listMedicalRecordsByPatient(patientId) {
+async function listMedicalRecordsByPatient(hospitalId, patientId) {
   const result = await db.query(
     `
       SELECT
         mr.id,
+        mr.hospital_id AS "hospitalId",
         mr.patient_id AS "patientId",
         mr.appointment_id AS "appointmentId",
         mr.doctor_id AS "doctorId",
@@ -23,20 +24,22 @@ async function listMedicalRecordsByPatient(patientId) {
       FROM medical_records mr
       JOIN doctors d ON d.id = mr.doctor_id
       JOIN users u ON u.id = d.user_id
-      WHERE mr.patient_id = $1
+      WHERE mr.hospital_id = $1
+        AND mr.patient_id = $2
       ORDER BY mr.created_at DESC
     `,
-    [patientId]
+    [hospitalId, patientId]
   );
   return result.rows;
 }
 
-async function listPrescriptionsByRecordIds(recordIds) {
+async function listPrescriptionsByRecordIds(hospitalId, recordIds) {
   if (!recordIds.length) return [];
   const result = await db.query(
     `
       SELECT
         id,
+        hospital_id AS "hospitalId",
         medical_record_id AS "medicalRecordId",
         appointment_id AS "appointmentId",
         patient_id AS "patientId",
@@ -49,19 +52,21 @@ async function listPrescriptionsByRecordIds(recordIds) {
         status,
         created_at AS "createdAt"
       FROM prescriptions
-      WHERE medical_record_id = ANY($1::int[])
+      WHERE hospital_id = $1
+        AND medical_record_id = ANY($2::int[])
       ORDER BY created_at ASC
     `,
-    [recordIds]
+    [hospitalId, recordIds]
   );
   return result.rows;
 }
 
-async function getPatientOverview(patientId) {
+async function getPatientOverview(hospitalId, patientId) {
   const result = await db.query(
     `
       SELECT
         p.id,
+        p.hospital_id AS "hospitalId",
         p.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,
@@ -80,24 +85,27 @@ async function getPatientOverview(patientId) {
         (
           SELECT COUNT(*)
           FROM appointments a
-          WHERE a.patient_id = p.id
+          WHERE a.hospital_id = p.hospital_id
+            AND a.patient_id = p.id
         )::int AS "appointmentCount",
         (
           SELECT COUNT(*)
           FROM medical_records mr
-          WHERE mr.patient_id = p.id
+          WHERE mr.hospital_id = p.hospital_id
+            AND mr.patient_id = p.id
         )::int AS "recordCount"
       FROM patients p
       JOIN users u ON u.id = p.user_id
       WHERE p.id = $1
+        AND p.hospital_id = $2
       LIMIT 1
     `,
-    [patientId]
+    [patientId, hospitalId]
   );
   return result.rows[0] || null;
 }
 
-async function listPatientTimeline(patientId) {
+async function listPatientTimeline(hospitalId, patientId) {
   const result = await db.query(
     `
       SELECT *
@@ -112,7 +120,8 @@ async function listPatientTimeline(patientId) {
         FROM appointments a
         JOIN doctors d ON d.id = a.doctor_id
         JOIN users du ON du.id = d.user_id
-        WHERE a.patient_id = $1
+        WHERE a.hospital_id = $1
+          AND a.patient_id = $2
 
         UNION ALL
 
@@ -126,7 +135,8 @@ async function listPatientTimeline(patientId) {
         FROM medical_records mr
         JOIN doctors d ON d.id = mr.doctor_id
         JOIN users du ON du.id = d.user_id
-        WHERE mr.patient_id = $1
+        WHERE mr.hospital_id = $1
+          AND mr.patient_id = $2
 
         UNION ALL
 
@@ -139,17 +149,19 @@ async function listPatientTimeline(patientId) {
           uploader.full_name AS actor
         FROM files f
         JOIN users uploader ON uploader.id = f.uploaded_by_user_id
-        WHERE f.patient_id = $1
+        WHERE f.hospital_id = $1
+          AND f.patient_id = $2
       ) timeline
       ORDER BY "occurredAt" DESC
       LIMIT 50
     `,
-    [patientId]
+    [hospitalId, patientId]
   );
   return result.rows;
 }
 
 async function createMedicalRecordWithPrescriptions({
+  hospitalId,
   patientId,
   appointmentId,
   doctorId,
@@ -167,6 +179,7 @@ async function createMedicalRecordWithPrescriptions({
     const recordResult = await client.query(
       `
         INSERT INTO medical_records (
+          hospital_id,
           patient_id,
           appointment_id,
           doctor_id,
@@ -179,10 +192,11 @@ async function createMedicalRecordWithPrescriptions({
           lab_summary,
           follow_up_in_days
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
       `,
       [
+        hospitalId,
         patientId,
         appointmentId || null,
         doctorId,
@@ -201,6 +215,7 @@ async function createMedicalRecordWithPrescriptions({
       await client.query(
         `
           INSERT INTO prescriptions (
+            hospital_id,
             medical_record_id,
             appointment_id,
             patient_id,
@@ -211,9 +226,10 @@ async function createMedicalRecordWithPrescriptions({
             duration_days,
             instructions
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         `,
         [
+          hospitalId,
           recordResult.rows[0].id,
           appointmentId || null,
           patientId,
@@ -231,11 +247,12 @@ async function createMedicalRecordWithPrescriptions({
   });
 }
 
-async function findMedicalRecordById(id) {
+async function findMedicalRecordById(id, hospitalId) {
   const result = await db.query(
     `
       SELECT
         mr.id,
+        mr.hospital_id AS "hospitalId",
         mr.patient_id AS "patientId",
         mr.appointment_id AS "appointmentId",
         mr.doctor_id AS "doctorId",
@@ -258,9 +275,10 @@ async function findMedicalRecordById(id) {
       JOIN doctors d ON d.id = mr.doctor_id
       JOIN users du ON du.id = d.user_id
       WHERE mr.id = $1
+        AND mr.hospital_id = $2
       LIMIT 1
     `,
-    [id]
+    [id, hospitalId]
   );
   return result.rows[0] || null;
 }

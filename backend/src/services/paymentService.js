@@ -1,6 +1,7 @@
 const paymentRepository = require("../repositories/paymentRepository");
 const patientRepository = require("../repositories/patientRepository");
 const appointmentRepository = require("../repositories/appointmentRepository");
+const auditService = require("./auditService");
 const { buildPdfBuffer } = require("../utils/pdf");
 const { AppError } = require("../utils/http");
 
@@ -21,10 +22,12 @@ function providerCheckoutUrl(provider, paymentId) {
 async function createInvoiceForAppointment({
   appointment,
   initiatedByUserId,
+  hospitalId,
   provider = "stripe",
   currency = "INR",
 }) {
   return paymentRepository.createPayment({
+    hospitalId,
     appointmentId: appointment.id,
     patientId: appointment.patientId,
     initiatedByUserId,
@@ -40,33 +43,59 @@ async function createInvoiceForAppointment({
   });
 }
 
-async function listPayments(user) {
+async function listPayments(user, context) {
   const patient = user.role === "patient"
-    ? await patientRepository.findPatientByUserId(user.id)
+    ? await patientRepository.findPatientByUserId(user.id, user.hospitalId)
     : null;
 
-  return paymentRepository.listPayments({
+  const payments = await paymentRepository.listPayments({
+    hospitalId: user.hospitalId,
     role: user.role,
     patientId: patient?.id,
   });
+
+  if (context) {
+    await auditService.recordAuditEvent({
+      user,
+      action: "billing.payments.view",
+      entityType: "payment",
+      entityId: patient?.id || "hospital",
+      metadata: {
+        paymentCount: payments.length,
+        role: user.role,
+      },
+      context,
+    });
+  }
+
+  return payments;
 }
 
-async function createCheckout(user, paymentId, provider) {
-  const payment = await paymentRepository.findPaymentById(paymentId);
+async function createCheckout(user, paymentId, provider, context) {
+  const payment = await paymentRepository.findPaymentById(paymentId, user.hospitalId);
   if (!payment) {
     throw new AppError(404, "Payment not found");
   }
 
   if (user.role === "patient") {
-    const patient = await patientRepository.findPatientByUserId(user.id);
+    const patient = await patientRepository.findPatientByUserId(user.id, user.hospitalId);
     if (!patient || patient.id !== payment.patientId) {
       throw new AppError(403, "Forbidden");
     }
   }
 
-  const updated = await paymentRepository.updatePayment(paymentId, {
+  const updated = await paymentRepository.updatePayment(paymentId, user.hospitalId, {
     status: "processing",
     paymentMethodLabel: provider === "razorpay" ? "Razorpay checkout" : "Stripe checkout",
+  });
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "billing.checkout.create",
+    entityType: "payment",
+    entityId: paymentId,
+    metadata: { provider },
+    context,
   });
 
   return {
@@ -76,38 +105,58 @@ async function createCheckout(user, paymentId, provider) {
   };
 }
 
-async function markPaymentStatus(user, paymentId, status) {
-  const payment = await paymentRepository.findPaymentById(paymentId);
+async function markPaymentStatus(user, paymentId, status, context) {
+  const payment = await paymentRepository.findPaymentById(paymentId, user.hospitalId);
   if (!payment) {
     throw new AppError(404, "Payment not found");
   }
 
   if (user.role === "patient") {
-    const patient = await patientRepository.findPatientByUserId(user.id);
+    const patient = await patientRepository.findPatientByUserId(user.id, user.hospitalId);
     if (!patient || patient.id !== payment.patientId) {
       throw new AppError(403, "Forbidden");
     }
   }
 
-  return paymentRepository.updatePayment(paymentId, { status });
+  const updated = await paymentRepository.updatePayment(paymentId, user.hospitalId, { status });
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "billing.payment.status",
+    entityType: "payment",
+    entityId: paymentId,
+    metadata: { status },
+    context,
+  });
+
+  return updated;
 }
 
-async function buildInvoicePdf(user, paymentId) {
-  const payment = await paymentRepository.findPaymentById(paymentId);
+async function buildInvoicePdf(user, paymentId, context) {
+  const payment = await paymentRepository.findPaymentById(paymentId, user.hospitalId);
   if (!payment) {
     throw new AppError(404, "Payment not found");
   }
 
   if (user.role === "patient") {
-    const patient = await patientRepository.findPatientByUserId(user.id);
+    const patient = await patientRepository.findPatientByUserId(user.id, user.hospitalId);
     if (!patient || patient.id !== payment.patientId) {
       throw new AppError(403, "Forbidden");
     }
   }
 
   const appointment = payment.appointmentId
-    ? await appointmentRepository.findAppointmentById(payment.appointmentId)
+    ? await appointmentRepository.findAppointmentById(payment.appointmentId, user.hospitalId)
     : null;
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "billing.invoice.download",
+    entityType: "payment",
+    entityId: paymentId,
+    metadata: { invoiceNumber: payment.invoiceNumber },
+    context,
+  });
 
   return {
     fileName: `${payment.invoiceNumber}.pdf`,

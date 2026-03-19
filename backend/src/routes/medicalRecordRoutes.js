@@ -6,7 +6,12 @@ const roleMiddleware = require("../middlewares/roleMiddleware");
 const router = express.Router();
 
 router.get("/mine", authMiddleware, roleMiddleware("patient"), medicalRecordController.listMine);
-router.get("/patients/:patientId", authMiddleware, medicalRecordController.listByPatient);
+router.get(
+  "/patients/:patientId",
+  authMiddleware,
+  roleMiddleware("patient", "doctor", "admin"),
+  medicalRecordController.listByPatient
+);
 router.post(
   "/consultations",
   authMiddleware,

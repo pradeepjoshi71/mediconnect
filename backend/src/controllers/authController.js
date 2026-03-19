@@ -4,6 +4,7 @@ const { refreshCookieOptions } = require("../utils/tokens");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 
 const registerSchema = z.object({
+  hospitalCode: z.string().trim().max(24).optional(),
   fullName: z.string().min(2).max(120),
   email: z.string().email().max(255),
   password: z.string().min(8).max(72),
@@ -13,13 +14,17 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
+  hospitalCode: z.string().trim().max(24).optional(),
   email: z.string().email().max(255),
   password: z.string().min(1).max(72),
 });
 
 const register = asyncHandler(async (req, res) => {
   const payload = registerSchema.parse(req.body);
-  const user = await authService.registerPatient(payload);
+  const user = await authService.registerPatient({
+    ...payload,
+    auditContext: req.auditContext,
+  });
 
   res.status(201).json({
     message: "Patient account created",
@@ -31,7 +36,11 @@ const login = asyncHandler(async (req, res) => {
   const payload = loginSchema.parse(req.body);
   const { accessToken, refreshToken, user } = await authService.login(
     payload.email,
-    payload.password
+    payload.password,
+    {
+      hospitalCode: payload.hospitalCode,
+      auditContext: req.auditContext,
+    }
   );
 
   res.cookie("refresh_token", refreshToken, refreshCookieOptions());

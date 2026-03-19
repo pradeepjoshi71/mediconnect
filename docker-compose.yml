@@ -3,8 +3,6 @@ services:
     image: postgres:16
     container_name: mediconnect-postgres
     restart: always
-    env_file:
-      - .env
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -22,6 +20,23 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: mediconnect-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mediconnect-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -31,6 +46,8 @@ services:
       - .env
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       PORT: ${BACKEND_PORT}
@@ -44,9 +61,19 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN}
       DB_POOL_MAX: ${DB_POOL_MAX}
+      DB_SSL: ${DB_SSL}
+      DB_APP_NAME: ${DB_APP_NAME}
       API_RATE_LIMIT: ${API_RATE_LIMIT}
+      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES}
       UPLOADS_DIR: ${UPLOADS_DIR}
+      REDIS_ENABLED: ${REDIS_ENABLED}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      DEFAULT_HOSPITAL_CODE: ${DEFAULT_HOSPITAL_CODE}
+      LOG_LEVEL: ${LOG_LEVEL}
     ports:
       - "5000:5000"
     volumes:
@@ -54,7 +81,7 @@ services:
     networks:
       - mediconnect-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/v1/health/ready || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -64,8 +91,6 @@ services:
       context: ./frontend
     container_name: mediconnect-frontend
     restart: always
-    env_file:
-      - .env
     depends_on:
       backend:
         condition: service_healthy
@@ -98,6 +123,7 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  redis_data:
 
 networks:
   mediconnect-network:

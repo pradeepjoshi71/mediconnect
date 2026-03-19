@@ -1,4 +1,5 @@
 import {
+  Building2,
   CalendarDays,
   CreditCard,
   FileText,
@@ -71,6 +72,13 @@ export default function Sidebar() {
               {user?.fullName}
             </div>
             <div className="text-xs text-slate-500 dark:text-slate-400">{user?.role}</div>
+            <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <Building2 className="h-3.5 w-3.5" />
+              <span>{user?.hospitalName || "Hospital tenant"}</span>
+            </div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+              {user?.hospitalCode || "Default tenant"}
+            </div>
           </div>
 
           <nav className="mt-6 space-y-2">

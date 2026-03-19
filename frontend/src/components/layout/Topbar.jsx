@@ -1,4 +1,4 @@
-import { Bell, Moon, Sun } from "lucide-react";
+import { Bell, Building2, Moon, Sun } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { markAllNotificationsRead, markNotificationRead, listNotifications } from "../../services/notificationService";
 import { connectRealtime } from "../../services/realtime";
@@ -52,7 +52,7 @@ export default function Topbar() {
               Connected care platform
             </div>
             <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Real-time operations for {user?.role} workflows.
+              {user?.hospitalName || "Hospital tenant"} operating in real time for {user?.role} workflows.
             </div>
           </div>
 
@@ -149,6 +149,10 @@ export default function Topbar() {
                   {user?.fullName}
                 </div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">{user?.email}</div>
+                <div className="mt-1 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                  <Building2 className="h-3 w-3" />
+                  {user?.hospitalCode || "Tenant"}
+                </div>
               </div>
             </div>
           </div>

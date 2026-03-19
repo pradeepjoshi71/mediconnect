@@ -16,17 +16,34 @@ const createStaffSchema = z.object({
   consultationFeeCents: z.number().int().min(0).optional(),
 });
 
-const listUsers = asyncHandler(async (_req, res) => {
-  res.json(await adminService.listUsers());
+const auditLogQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  action: z.string().max(120).optional(),
+  userId: z.coerce.number().int().positive().optional(),
+});
+
+const listUsers = asyncHandler(async (req, res) => {
+  res.json(await adminService.listUsers(req.user));
 });
 
 const createStaffUser = asyncHandler(async (req, res) => {
   const payload = createStaffSchema.parse(req.body);
-  const result = await adminService.createStaffUser(payload);
+  const result = await adminService.createStaffUser(req.user, payload, req.auditContext);
   res.status(201).json(result);
+});
+
+const getHospitalSummary = asyncHandler(async (req, res) => {
+  res.json(await adminService.getHospitalSummary(req.user));
+});
+
+const listAuditLogs = asyncHandler(async (req, res) => {
+  const query = auditLogQuery.parse(req.query);
+  res.json(await adminService.listAuditLogs(req.user, query));
 });
 
 module.exports = {
   listUsers,
   createStaffUser,
+  getHospitalSummary,
+  listAuditLogs,
 };

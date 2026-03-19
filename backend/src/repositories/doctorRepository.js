@@ -1,14 +1,15 @@
 const db = require("../config/db");
 
 async function listDoctors({
+  hospitalId,
   search = "",
   specialization = "",
   minExperience = 0,
   minRating = 0,
   sort = "rating",
 }) {
-  const where = [`u.status = 'active'`];
-  const params = [];
+  const where = [`u.status = 'active'`, `d.hospital_id = $1`];
+  const params = [hospitalId];
 
   if (search) {
     params.push(`%${search}%`);
@@ -66,6 +67,7 @@ async function findDoctorById(id) {
     `
       SELECT
         d.id,
+        d.hospital_id AS "hospitalId",
         d.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,
@@ -88,11 +90,41 @@ async function findDoctorById(id) {
   return result.rows[0] || null;
 }
 
-async function findDoctorByUserId(userId) {
+async function findDoctorByIdWithinHospital(id, hospitalId) {
   const result = await db.query(
     `
       SELECT
         d.id,
+        d.hospital_id AS "hospitalId",
+        d.user_id AS "userId",
+        u.full_name AS "fullName",
+        u.email,
+        u.phone,
+        d.specialization,
+        d.department,
+        d.employee_code AS "employeeCode",
+        d.license_number AS "licenseNumber",
+        d.experience_years AS "experienceYears",
+        d.rating,
+        d.consultation_fee_cents AS "consultationFeeCents",
+        d.biography
+      FROM doctors d
+      JOIN users u ON u.id = d.user_id
+      WHERE d.id = $1
+        AND d.hospital_id = $2
+      LIMIT 1
+    `,
+    [id, hospitalId]
+  );
+  return result.rows[0] || null;
+}
+
+async function findDoctorByUserId(userId, hospitalId) {
+  const result = await db.query(
+    `
+      SELECT
+        d.id,
+        d.hospital_id AS "hospitalId",
         d.user_id AS "userId",
         u.full_name AS "fullName",
         u.email,
@@ -102,14 +134,15 @@ async function findDoctorByUserId(userId) {
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       WHERE d.user_id = $1
+        AND d.hospital_id = $2
       LIMIT 1
     `,
-    [userId]
+    [userId, hospitalId]
   );
   return result.rows[0] || null;
 }
 
-async function listAvailabilityRules(doctorId) {
+async function listAvailabilityRules(hospitalId, doctorId) {
   const result = await db.query(
     `
       SELECT
@@ -119,34 +152,37 @@ async function listAvailabilityRules(doctorId) {
         end_time AS "endTime",
         slot_minutes AS "slotMinutes"
       FROM doctor_availability_rules
-      WHERE doctor_id = $1
+      WHERE hospital_id = $1
+        AND doctor_id = $2
       ORDER BY weekday ASC, start_time ASC
     `,
-    [doctorId]
+    [hospitalId, doctorId]
   );
   return result.rows;
 }
 
-async function replaceAvailabilityRules(doctorId, rules) {
+async function replaceAvailabilityRules(hospitalId, doctorId, rules) {
   return db.withTransaction(async (client) => {
     await client.query(
-      `DELETE FROM doctor_availability_rules WHERE doctor_id = $1`,
-      [doctorId]
+      `DELETE FROM doctor_availability_rules WHERE hospital_id = $1 AND doctor_id = $2`,
+      [hospitalId, doctorId]
     );
 
     for (const rule of rules) {
       await client.query(
         `
           INSERT INTO doctor_availability_rules (
+            hospital_id,
             doctor_id,
             weekday,
             start_time,
             end_time,
             slot_minutes
           )
-          VALUES ($1, $2, $3, $4, $5)
+          VALUES ($1, $2, $3, $4, $5, $6)
         `,
         [
+          hospitalId,
           doctorId,
           rule.weekday,
           rule.startTime,
@@ -158,7 +194,7 @@ async function replaceAvailabilityRules(doctorId, rules) {
   });
 }
 
-async function listTimeOff(doctorId) {
+async function listTimeOff(hospitalId, doctorId) {
   const result = await db.query(
     `
       SELECT
@@ -167,43 +203,45 @@ async function listTimeOff(doctorId) {
         ends_at AS "endsAt",
         reason
       FROM doctor_time_off
-      WHERE doctor_id = $1
+      WHERE hospital_id = $1
+        AND doctor_id = $2
       ORDER BY starts_at DESC
       LIMIT 100
     `,
-    [doctorId]
+    [hospitalId, doctorId]
   );
   return result.rows;
 }
 
-async function createTimeOff(doctorId, { startsAt, endsAt, reason }) {
+async function createTimeOff(hospitalId, doctorId, { startsAt, endsAt, reason }) {
   const result = await db.query(
     `
-      INSERT INTO doctor_time_off (doctor_id, starts_at, ends_at, reason)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO doctor_time_off (hospital_id, doctor_id, starts_at, ends_at, reason)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING
         id,
         starts_at AS "startsAt",
         ends_at AS "endsAt",
         reason
     `,
-    [doctorId, startsAt, endsAt, reason || null]
+    [hospitalId, doctorId, startsAt, endsAt, reason || null]
   );
   return result.rows[0];
 }
 
-async function listTimeOffInRange(doctorId, startsAt, endsAt) {
+async function listTimeOffInRange(hospitalId, doctorId, startsAt, endsAt) {
   const result = await db.query(
     `
       SELECT
         starts_at AS "startsAt",
         ends_at AS "endsAt"
       FROM doctor_time_off
-      WHERE doctor_id = $1
-        AND starts_at < $3
-        AND ends_at > $2
+      WHERE hospital_id = $1
+        AND doctor_id = $2
+        AND starts_at < $4
+        AND ends_at > $3
     `,
-    [doctorId, startsAt, endsAt]
+    [hospitalId, doctorId, startsAt, endsAt]
   );
   return result.rows;
 }
@@ -211,6 +249,7 @@ async function listTimeOffInRange(doctorId, startsAt, endsAt) {
 module.exports = {
   listDoctors,
   findDoctorById,
+  findDoctorByIdWithinHospital,
   findDoctorByUserId,
   listAvailabilityRules,
   replaceAvailabilityRules,

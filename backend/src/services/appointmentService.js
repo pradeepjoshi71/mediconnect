@@ -2,9 +2,10 @@ const appointmentRepository = require("../repositories/appointmentRepository");
 const doctorRepository = require("../repositories/doctorRepository");
 const patientRepository = require("../repositories/patientRepository");
 const paymentService = require("./paymentService");
+const auditService = require("./auditService");
 const { notifyUser } = require("./notificationService");
 const { AppError } = require("../utils/http");
-const { safeEmitToUser } = require("../realtime/io");
+const { safeEmitToUser, safeEmitToHospital } = require("../realtime/io");
 
 function parseTimeTextToDate(date, timeText) {
   const [hours, minutes] = String(timeText).split(":").map(Number);
@@ -40,7 +41,7 @@ function weekday(date) {
 
 async function resolvePatientForActor(user, requestedPatientId) {
   if (user.role === "patient") {
-    const patient = await patientRepository.findPatientByUserId(user.id);
+    const patient = await patientRepository.findPatientByUserId(user.id, user.hospitalId);
     if (!patient) {
       throw new AppError(404, "Patient profile not found");
     }
@@ -51,17 +52,17 @@ async function resolvePatientForActor(user, requestedPatientId) {
     throw new AppError(400, "patientId is required for staff bookings");
   }
 
-  const patient = await patientRepository.findPatientById(requestedPatientId);
+  const patient = await patientRepository.findPatientById(requestedPatientId, user.hospitalId);
   if (!patient) {
     throw new AppError(404, "Patient not found");
   }
   return patient;
 }
 
-async function resolveSlot(doctorId, startsAt, priority) {
+async function resolveSlot(hospitalId, doctorId, startsAt, priority) {
   if (startsAt) {
     const slotStart = new Date(startsAt);
-    const rules = (await doctorRepository.listAvailabilityRules(doctorId)).filter(
+    const rules = (await doctorRepository.listAvailabilityRules(hospitalId, doctorId)).filter(
       (item) => Number(item.weekday) === weekday(slotStart)
     );
 
@@ -86,7 +87,7 @@ async function resolveSlot(doctorId, startsAt, priority) {
     throw new AppError(400, "startsAt is required unless this is an emergency booking");
   }
 
-  const rules = await doctorRepository.listAvailabilityRules(doctorId);
+  const rules = await doctorRepository.listAvailabilityRules(hospitalId, doctorId);
   const now = new Date();
 
   for (let dayOffset = 0; dayOffset < 5; dayOffset += 1) {
@@ -97,11 +98,13 @@ async function resolveSlot(doctorId, startsAt, priority) {
     const { start, end } = dayBounds(targetDate);
     const [appointments, timeOff] = await Promise.all([
       appointmentRepository.listDoctorAppointmentsBetween(
+        hospitalId,
         doctorId,
         start.toISOString(),
         end.toISOString()
       ),
       doctorRepository.listTimeOffInRange(
+        hospitalId,
         doctorId,
         start.toISOString(),
         end.toISOString()
@@ -142,14 +145,22 @@ async function resolveSlot(doctorId, startsAt, priority) {
   throw new AppError(409, "No emergency slots are currently available");
 }
 
-async function ensureSlotAvailable(doctorId, slotStart, slotEnd, excludeAppointmentId = null) {
+async function ensureSlotAvailable(
+  hospitalId,
+  doctorId,
+  slotStart,
+  slotEnd,
+  excludeAppointmentId = null
+) {
   const [conflict, timeOff] = await Promise.all([
     appointmentRepository.findActiveAppointmentConflict(
+      hospitalId,
       doctorId,
       slotStart.toISOString(),
       excludeAppointmentId
     ),
     doctorRepository.listTimeOffInRange(
+      hospitalId,
       doctorId,
       slotStart.toISOString(),
       slotEnd.toISOString()
@@ -168,14 +179,16 @@ async function ensureSlotAvailable(doctorId, slotStart, slotEnd, excludeAppointm
 async function maybeOfferWaitlist(appointment) {
   const preferredDate = new Date(appointment.scheduledStart).toISOString().slice(0, 10);
   const entry = await appointmentRepository.findPromotableWaitlistEntry(
+    appointment.hospitalId,
     appointment.doctorId,
     preferredDate
   );
 
   if (!entry) return;
 
-  await appointmentRepository.updateWaitlistStatus(entry.id, "offered");
+  await appointmentRepository.updateWaitlistStatus(entry.id, appointment.hospitalId, "offered");
   await notifyUser({
+    hospitalId: appointment.hospitalId,
     userId: entry.patientUserId,
     title: "Waitlist slot available",
     body: `A slot is available with ${appointment.doctorName} on ${preferredDate}.`,
@@ -188,30 +201,63 @@ async function maybeOfferWaitlist(appointment) {
   });
 }
 
-async function bookAppointment(user, payload) {
-  const doctor = await doctorRepository.findDoctorById(payload.doctorId);
+async function bookAppointment(user, payload, context) {
+  const doctor = await doctorRepository.findDoctorByIdWithinHospital(
+    payload.doctorId,
+    user.hospitalId
+  );
   if (!doctor) {
     throw new AppError(404, "Doctor not found");
   }
 
   const patient = await resolvePatientForActor(user, payload.patientId);
   const { slotStart, slotEnd } = await resolveSlot(
+    user.hospitalId,
     doctor.id,
     payload.startsAt,
     payload.priority
   );
 
   try {
-    await ensureSlotAvailable(doctor.id, slotStart, slotEnd);
+    await ensureSlotAvailable(user.hospitalId, doctor.id, slotStart, slotEnd);
   } catch (error) {
     if (payload.waitingListRequested) {
       const waitlist = await appointmentRepository.createWaitlistEntry({
+        hospitalId: user.hospitalId,
         patientId: patient.id,
         doctorId: doctor.id,
         preferredDate: slotStart.toISOString().slice(0, 10),
         preferredWindow: slotStart.toISOString().slice(11, 16),
         priority: payload.priority,
         reason: payload.reason,
+      });
+
+      await Promise.all([
+        notifyUser({
+          hospitalId: user.hospitalId,
+          userId: patient.userId,
+          title: "Added to waitlist",
+          body: `No slot was free, so you were added to the waitlist for ${doctor.fullName}.`,
+          eventType: "waitlist.created",
+          data: { waitlistId: waitlist.id },
+        }),
+        auditService.recordAuditEvent({
+          user,
+          action: "appointments.waitlist.auto_create",
+          entityType: "appointment_waitlist",
+          entityId: waitlist.id,
+          metadata: {
+            doctorId: doctor.id,
+            patientId: patient.id,
+            requestedStart: payload.startsAt || null,
+          },
+          context,
+        }),
+      ]);
+
+      safeEmitToHospital(user.hospitalId, "waitlist:changed", {
+        type: "created",
+        waitlistId: waitlist.id,
       });
 
       return {
@@ -224,12 +270,14 @@ async function bookAppointment(user, payload) {
 
   const { start, end } = dayBounds(slotStart);
   const queueNumber = await appointmentRepository.getNextQueueNumber(
+    user.hospitalId,
     doctor.id,
     start.toISOString(),
     end.toISOString()
   );
 
   const appointment = await appointmentRepository.createAppointment({
+    hospitalId: user.hospitalId,
     patientId: patient.id,
     doctorId: doctor.id,
     bookedByUserId: user.id,
@@ -246,11 +294,13 @@ async function bookAppointment(user, payload) {
 
   const payment = await paymentService.createInvoiceForAppointment({
     appointment,
+    hospitalId: user.hospitalId,
     initiatedByUserId: user.id,
   });
 
   await Promise.all([
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: patient.userId,
       title: "Appointment booked",
       body: `Your ${doctor.specialization} visit with ${doctor.fullName} is scheduled for ${slotStart.toLocaleString()}.`,
@@ -259,6 +309,7 @@ async function bookAppointment(user, payload) {
       channels: ["in_app", "email"],
     }),
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: doctor.userId,
       title: "New appointment booked",
       body: `${patient.fullName} has been scheduled for ${slotStart.toLocaleString()}.`,
@@ -266,13 +317,32 @@ async function bookAppointment(user, payload) {
       data: { appointmentId: appointment.id },
       channels: ["in_app", "email"],
     }),
+    auditService.recordAuditEvent({
+      user,
+      action: "appointments.book",
+      entityType: "appointment",
+      entityId: appointment.id,
+      metadata: {
+        patientId: patient.id,
+        doctorId: doctor.id,
+        priority: appointment.priority,
+        consultationMode: appointment.consultationMode,
+      },
+      context,
+    }),
   ]);
+
+  safeEmitToHospital(user.hospitalId, "appointments:changed", {
+    type: "booked",
+    appointmentId: appointment.id,
+  });
 
   return { appointment, payment };
 }
 
 async function listAppointments(user, filters) {
   return appointmentRepository.listAppointmentsForScope({
+    hospitalId: user.hospitalId,
     role: user.role,
     patientId: user.patientProfileId,
     doctorId: user.doctorProfileId,
@@ -284,6 +354,7 @@ async function listAppointments(user, filters) {
 async function listQueue(user, { date }) {
   const targetDate = date || new Date().toISOString().slice(0, 10);
   const appointments = await appointmentRepository.listAppointmentsForScope({
+    hospitalId: user.hospitalId,
     role: user.role === "doctor" ? "doctor" : "admin",
     patientId: user.patientProfileId,
     doctorId: user.doctorProfileId,
@@ -298,8 +369,11 @@ async function listQueue(user, { date }) {
     .sort((a, b) => a.queueNumber - b.queueNumber);
 }
 
-async function rescheduleAppointment(user, appointmentId, startsAt) {
-  const appointment = await appointmentRepository.findAppointmentById(appointmentId);
+async function rescheduleAppointment(user, appointmentId, startsAt, context) {
+  const appointment = await appointmentRepository.findAppointmentById(
+    appointmentId,
+    user.hospitalId
+  );
   if (!appointment) {
     throw new AppError(404, "Appointment not found");
   }
@@ -315,13 +389,20 @@ async function rescheduleAppointment(user, appointmentId, startsAt) {
   }
 
   const { slotStart, slotEnd } = await resolveSlot(
+    user.hospitalId,
     appointment.doctorId,
     startsAt,
     appointment.priority
   );
-  await ensureSlotAvailable(appointment.doctorId, slotStart, slotEnd, appointment.id);
+  await ensureSlotAvailable(
+    user.hospitalId,
+    appointment.doctorId,
+    slotStart,
+    slotEnd,
+    appointment.id
+  );
 
-  const updated = await appointmentRepository.updateAppointmentSchedule(appointmentId, {
+  const updated = await appointmentRepository.updateAppointmentSchedule(appointmentId, user.hospitalId, {
     scheduledStart: slotStart.toISOString(),
     scheduledEnd: slotEnd.toISOString(),
     status: "scheduled",
@@ -329,6 +410,7 @@ async function rescheduleAppointment(user, appointmentId, startsAt) {
 
   await Promise.all([
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: appointment.patientUserId,
       title: "Appointment rescheduled",
       body: `Your appointment has been moved to ${slotStart.toLocaleString()}.`,
@@ -336,19 +418,39 @@ async function rescheduleAppointment(user, appointmentId, startsAt) {
       data: { appointmentId },
     }),
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: appointment.doctorUserId,
       title: "Appointment rescheduled",
       body: `A patient booking has been moved to ${slotStart.toLocaleString()}.`,
       eventType: "appointment.rescheduled",
       data: { appointmentId },
     }),
+    auditService.recordAuditEvent({
+      user,
+      action: "appointments.reschedule",
+      entityType: "appointment",
+      entityId: appointmentId,
+      metadata: {
+        previousStart: appointment.scheduledStart,
+        nextStart: updated?.scheduledStart,
+      },
+      context,
+    }),
   ]);
+
+  safeEmitToHospital(user.hospitalId, "appointments:changed", {
+    type: "rescheduled",
+    appointmentId,
+  });
 
   return updated;
 }
 
-async function updateAppointmentStatus(user, appointmentId, { status, cancellationReason }) {
-  const appointment = await appointmentRepository.findAppointmentById(appointmentId);
+async function updateAppointmentStatus(user, appointmentId, { status, cancellationReason }, context) {
+  const appointment = await appointmentRepository.findAppointmentById(
+    appointmentId,
+    user.hospitalId
+  );
   if (!appointment) {
     throw new AppError(404, "Appointment not found");
   }
@@ -367,7 +469,7 @@ async function updateAppointmentStatus(user, appointmentId, { status, cancellati
     throw new AppError(403, "Only clinicians and staff can update to that status");
   }
 
-  const updated = await appointmentRepository.updateAppointmentStatus(appointmentId, {
+  const updated = await appointmentRepository.updateAppointmentStatus(appointmentId, user.hospitalId, {
     status,
     cancellationReason,
     completedAt: status === "completed" ? new Date().toISOString() : null,
@@ -375,6 +477,7 @@ async function updateAppointmentStatus(user, appointmentId, { status, cancellati
 
   await Promise.all([
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: appointment.patientUserId,
       title: "Appointment status updated",
       body: `Your appointment is now ${status.replaceAll("_", " ")}.`,
@@ -382,11 +485,23 @@ async function updateAppointmentStatus(user, appointmentId, { status, cancellati
       data: { appointmentId },
     }),
     notifyUser({
+      hospitalId: user.hospitalId,
       userId: appointment.doctorUserId,
       title: "Appointment status updated",
       body: `${appointment.patientName}'s appointment is now ${status.replaceAll("_", " ")}.`,
       eventType: "appointment.status",
       data: { appointmentId },
+    }),
+    auditService.recordAuditEvent({
+      user,
+      action: "appointments.status.update",
+      entityType: "appointment",
+      entityId: appointmentId,
+      metadata: {
+        status,
+        cancellationReason: cancellationReason || null,
+      },
+      context,
     }),
   ]);
 
@@ -396,19 +511,28 @@ async function updateAppointmentStatus(user, appointmentId, { status, cancellati
 
   safeEmitToUser(appointment.patientUserId, "appointment:updated", updated);
   safeEmitToUser(appointment.doctorUserId, "appointment:updated", updated);
+  safeEmitToHospital(user.hospitalId, "appointments:changed", {
+    type: "status",
+    appointmentId,
+    status,
+  });
 
   return updated;
 }
 
-async function createWaitlist(user, payload) {
+async function createWaitlist(user, payload, context) {
   const patient = await resolvePatientForActor(user, payload.patientId);
-  const doctor = await doctorRepository.findDoctorById(payload.doctorId);
+  const doctor = await doctorRepository.findDoctorByIdWithinHospital(
+    payload.doctorId,
+    user.hospitalId
+  );
 
   if (!doctor) {
     throw new AppError(404, "Doctor not found");
   }
 
   const entry = await appointmentRepository.createWaitlistEntry({
+    hospitalId: user.hospitalId,
     patientId: patient.id,
     doctorId: doctor.id,
     preferredDate: payload.preferredDate,
@@ -418,6 +542,7 @@ async function createWaitlist(user, payload) {
   });
 
   await notifyUser({
+    hospitalId: user.hospitalId,
     userId: patient.userId,
     title: "Added to waitlist",
     body: `You have been added to the waitlist for ${doctor.fullName}.`,
@@ -425,17 +550,38 @@ async function createWaitlist(user, payload) {
     data: { waitlistId: entry.id },
   });
 
+  await auditService.recordAuditEvent({
+    user,
+    action: "appointments.waitlist.create",
+    entityType: "appointment_waitlist",
+    entityId: entry.id,
+    metadata: {
+      doctorId: doctor.id,
+      patientId: patient.id,
+      preferredDate: payload.preferredDate,
+    },
+    context,
+  });
+
+  safeEmitToHospital(user.hospitalId, "waitlist:changed", {
+    type: "created",
+    waitlistId: entry.id,
+  });
+
   return entry;
 }
 
 async function listWaitlist(user) {
   if (user.role === "doctor") {
-    return appointmentRepository.listWaitlist({ doctorId: user.doctorProfileId });
+    return appointmentRepository.listWaitlist({
+      hospitalId: user.hospitalId,
+      doctorId: user.doctorProfileId,
+    });
   }
   if (!["admin", "receptionist"].includes(user.role)) {
     throw new AppError(403, "Forbidden");
   }
-  return appointmentRepository.listWaitlist();
+  return appointmentRepository.listWaitlist({ hospitalId: user.hospitalId });
 }
 
 module.exports = {

@@ -2,6 +2,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const app = require("./app");
 const { setIO, attachSocketHandlers } = require("./realtime/io");
+const logger = require("./utils/logger");
 
 const PORT = process.env.PORT || 5000;
 
@@ -20,5 +21,5 @@ io.on("connection", (socket) => {
 setIO(io);
 
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info("Server started", { port: PORT });
 });

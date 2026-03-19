@@ -3,6 +3,7 @@ const db = require("../config/db");
 const PAYMENT_SELECT = `
   SELECT
     pay.id,
+    pay.hospital_id AS "hospitalId",
     pay.appointment_id AS "appointmentId",
     pay.patient_id AS "patientId",
     pay.initiated_by_user_id AS "initiatedByUserId",
@@ -28,9 +29,9 @@ const PAYMENT_SELECT = `
   LEFT JOIN users du ON du.id = d.user_id
 `;
 
-async function listPayments({ role, patientId }) {
-  const params = [];
-  const where = [];
+async function listPayments({ hospitalId, role, patientId }) {
+  const params = [hospitalId];
+  const where = [`pay.hospital_id = $1`];
   if (role === "patient") {
     params.push(patientId);
     where.push(`pay.patient_id = $${params.length}`);
@@ -48,19 +49,21 @@ async function listPayments({ role, patientId }) {
   return result.rows;
 }
 
-async function findPaymentById(id) {
+async function findPaymentById(id, hospitalId) {
   const result = await db.query(
     `
       ${PAYMENT_SELECT}
       WHERE pay.id = $1
+        AND pay.hospital_id = $2
       LIMIT 1
     `,
-    [id]
+    [id, hospitalId]
   );
   return result.rows[0] || null;
 }
 
 async function createPayment({
+  hospitalId,
   appointmentId,
   patientId,
   initiatedByUserId,
@@ -74,6 +77,7 @@ async function createPayment({
   const result = await db.query(
     `
       INSERT INTO payments (
+        hospital_id,
         appointment_id,
         patient_id,
         initiated_by_user_id,
@@ -84,10 +88,11 @@ async function createPayment({
         payment_method_label,
         metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `,
     [
+      hospitalId,
       appointmentId || null,
       patientId,
       initiatedByUserId || null,
@@ -99,10 +104,10 @@ async function createPayment({
       metadata || {},
     ]
   );
-  return findPaymentById(result.rows[0].id);
+  return findPaymentById(result.rows[0].id, hospitalId);
 }
 
-async function updatePayment(id, patch) {
+async function updatePayment(id, hospitalId, patch) {
   const result = await db.query(
     `
       UPDATE payments
@@ -112,11 +117,18 @@ async function updatePayment(id, patch) {
         payment_method_label = COALESCE($4, payment_method_label),
         paid_at = CASE WHEN $2 = 'paid' THEN now() ELSE paid_at END
       WHERE id = $1
+        AND hospital_id = $5
       RETURNING id
     `,
-    [id, patch.status || null, patch.externalReference || null, patch.paymentMethodLabel || null]
+    [
+      id,
+      patch.status || null,
+      patch.externalReference || null,
+      patch.paymentMethodLabel || null,
+      hospitalId,
+    ]
   );
-  return result.rows[0] ? findPaymentById(result.rows[0].id) : null;
+  return result.rows[0] ? findPaymentById(result.rows[0].id, hospitalId) : null;
 }
 
 module.exports = {
