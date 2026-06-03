@@ -30,3 +30,23 @@ export async function addMyTimeOff(payload) {
   const response = await api.post("/doctors/me/time-off", payload);
   return response.data;
 }
+
+export async function getDoctorById(id) {
+  const response = await api.get(`/doctors/${id}`);
+  return response.data;
+}
+
+export async function createDoctor(payload) {
+  const response = await api.post("/doctors", payload);
+  return response.data;
+}
+
+export async function updateDoctor(id, payload) {
+  const response = await api.put(`/doctors/${id}`, payload);
+  return response.data;
+}
+
+export async function updateDoctorStatus(id, status) {
+  const response = await api.patch(`/doctors/${id}/status`, { status });
+  return response.data;
+}

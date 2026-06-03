@@ -12,6 +12,7 @@ import Doctors from "./pages/Doctors";
 import AppointmentsPage from "./pages/AppointmentsPage";
 import MedicalRecordsPage from "./pages/MedicalRecordsPage";
 import BillingPage from "./pages/BillingPage";
+import Patients from "./pages/Patients";
 import { refreshSession } from "./services/authService";
 import { clearSession, hasSession } from "./services/session";
 import { applyTheme, getTheme } from "./utils/theme";
@@ -99,6 +100,7 @@ export default function App() {
             />
             <Route path="/appointments" element={<AppointmentsPage />} />
             <Route path="/records" element={<MedicalRecordsPage />} />
+            <Route path="/patients" element={<Patients />} />
             <Route path="/doctors-list" element={<Doctors />} />
             <Route
               path="/billing"

@@ -47,7 +47,56 @@ async function getPatientSummary(user, patientId, context) {
   };
 }
 
+async function createPatient(user, data, context) {
+  if (!["admin", "super_admin", "hospital_admin", "receptionist"].includes(user.role)) {
+    throw new AppError(403, "You do not have access to create patients");
+  }
+
+  const patientId = await patientRepository.createPatient(user.hospitalId, data);
+  const patient = await patientRepository.findPatientById(patientId, user.hospitalId);
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "admin.patient.create",
+    entityType: "patient",
+    entityId: patientId,
+    metadata: { email: data.email },
+    context,
+  });
+
+  return patient;
+}
+
+async function updatePatient(user, id, data, context) {
+  const isSelf = user.role === "patient" && Number(user.patientProfileId) === Number(id);
+  const isStaff = ["admin", "super_admin", "hospital_admin", "doctor", "receptionist"].includes(user.role);
+
+  if (!isSelf && !isStaff) {
+    throw new AppError(403, "You do not have access to update this patient");
+  }
+
+  const updated = await patientRepository.updatePatient(user.hospitalId, id, data);
+  if (!updated) {
+    throw new AppError(404, "Patient not found");
+  }
+
+  const patient = await patientRepository.findPatientById(id, user.hospitalId);
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "admin.patient.update",
+    entityType: "patient",
+    entityId: id,
+    metadata: { email: data.email },
+    context,
+  });
+
+  return patient;
+}
+
 module.exports = {
   listPatients,
   getPatientSummary,
+  createPatient,
+  updatePatient,
 };

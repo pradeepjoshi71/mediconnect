@@ -11,3 +11,13 @@ export async function getPatientSummary(patientId) {
   const response = await api.get(`/patients/${patientId}`);
   return response.data;
 }
+
+export async function createPatient(data) {
+  const response = await api.post("/patients", data);
+  return response.data;
+}
+
+export async function updatePatient(id, data) {
+  const response = await api.put(`/patients/${id}`, data);
+  return response.data;
+}

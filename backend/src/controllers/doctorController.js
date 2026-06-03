@@ -31,10 +31,73 @@ const timeOffSchema = z.object({
   reason: z.string().max(400).optional(),
 });
 
+const createDoctorSchema = z.object({
+  employee_id: z.string().trim().min(1).max(40),
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(255),
+  phone: z.string().trim().max(24).optional(),
+  specialization: z.string().trim().min(2).max(120),
+  qualification: z.string().trim().min(2).max(255),
+  years_experience: z.coerce.number().int().min(0),
+  consultation_fee: z.coerce.number().min(0),
+  department: z.string().trim().min(1).max(120).optional().default("General"),
+  biography: z.string().optional(),
+  status: z.enum(["active", "inactive"]).optional().default("active"),
+  password: z.string().min(8).optional(),
+});
+
+const updateDoctorSchema = z.object({
+  employee_id: z.string().trim().min(1).max(40),
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(255),
+  phone: z.string().trim().max(24).optional(),
+  specialization: z.string().trim().min(2).max(120),
+  qualification: z.string().trim().min(2).max(255),
+  years_experience: z.coerce.number().int().min(0),
+  consultation_fee: z.coerce.number().min(0),
+  department: z.string().trim().min(1).max(120).optional().default("General"),
+  biography: z.string().optional(),
+  status: z.enum(["active", "inactive"]).optional().default("active"),
+});
+
+const updateStatusSchema = z.object({
+  status: z.enum(["active", "inactive"]),
+});
+
 const listDoctors = asyncHandler(async (req, res) => {
   const query = listDoctorsQuery.parse(req.query);
-  const doctors = await doctorService.listDoctors(req.user, query);
+  const isAdmin = ["super_admin", "hospital_admin", "admin"].includes(req.user.role);
+  const doctors = await doctorService.listDoctors(req.user, {
+    ...query,
+    includeInactive: isAdmin ? true : false,
+  });
   res.json(doctors);
+});
+
+const getDoctorById = asyncHandler(async (req, res) => {
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  const doctor = await doctorService.getDoctorById(req.user, params.id);
+  res.json(doctor);
+});
+
+const createDoctor = asyncHandler(async (req, res) => {
+  const payload = createDoctorSchema.parse(req.body);
+  const doctor = await doctorService.createDoctor(req.user, payload, req.auditContext);
+  res.status(201).json(doctor);
+});
+
+const updateDoctor = asyncHandler(async (req, res) => {
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  const payload = updateDoctorSchema.parse(req.body);
+  const doctor = await doctorService.updateDoctor(req.user, params.id, payload, req.auditContext);
+  res.json(doctor);
+});
+
+const updateDoctorStatus = asyncHandler(async (req, res) => {
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  const payload = updateStatusSchema.parse(req.body);
+  const result = await doctorService.updateDoctorStatus(req.user, params.id, payload.status, req.auditContext);
+  res.json(result);
 });
 
 const getAvailability = asyncHandler(async (req, res) => {
@@ -71,4 +134,8 @@ module.exports = {
   updateMyAvailability,
   listMyTimeOff,
   addTimeOff,
+  getDoctorById,
+  createDoctor,
+  updateDoctor,
+  updateDoctorStatus,
 };

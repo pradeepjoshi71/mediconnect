@@ -8,13 +8,28 @@ const router = express.Router();
 router.get(
   "/",
   authMiddleware,
-  roleMiddleware("doctor", "admin", "receptionist"),
+  roleMiddleware("doctor", "admin", "receptionist", "super_admin", "hospital_admin"),
   patientController.listPatients
 );
+
+router.post(
+  "/",
+  authMiddleware,
+  roleMiddleware("admin", "super_admin", "hospital_admin", "receptionist"),
+  patientController.createPatient
+);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  roleMiddleware("admin", "super_admin", "hospital_admin", "doctor", "receptionist"),
+  patientController.updatePatient
+);
+
 router.get(
   "/:patientId",
   authMiddleware,
-  roleMiddleware("patient", "doctor", "admin"),
+  roleMiddleware("patient", "doctor", "admin", "super_admin", "hospital_admin"),
   patientController.getPatientSummary
 );
 

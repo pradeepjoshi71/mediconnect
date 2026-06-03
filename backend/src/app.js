@@ -18,6 +18,9 @@ const paymentRoutes = require("./routes/paymentRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const adminDashboardRoutes = require("./routes/adminDashboardRoutes");
+const recordRoutes = require("./routes/recordRoutes");
+const documentRoutes = require("./routes/documentRoutes");
 const telemedicineRoutes = require("./routes/telemedicineRoutes");
 const intelligenceRoutes = require("./routes/intelligenceRoutes");
 const { requestContext } = require("./middlewares/requestContext");
@@ -124,6 +127,18 @@ app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/intelligence", intelligenceRoutes);
 app.use("/api/v1/telemedicine", telemedicineRoutes);
+
+// Phase 1 API Mounts
+app.use("/api/doctors", doctorRoutes);
+app.use("/api/admin", adminDashboardRoutes);
+app.use("/api/v1/admin", adminDashboardRoutes);
+
+// Phase 2 API Mounts
+app.use("/api/patients", patientRoutes);
+app.use("/api/records", recordRoutes);
+app.use("/api/v1/records", recordRoutes);
+app.use("/api/documents", documentRoutes);
+app.use("/api/v1/documents", documentRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

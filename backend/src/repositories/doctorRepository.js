@@ -7,14 +7,19 @@ async function listDoctors({
   minExperience = 0,
   minRating = 0,
   sort = "rating",
+  includeInactive = false,
 }) {
-  const where = [`u.status = 'active'`, `d.hospital_id = $1`];
+  const where = [`d.hospital_id = $1`];
   const params = [hospitalId];
+
+  if (!includeInactive) {
+    where.push(`u.status = 'active'`);
+  }
 
   if (search) {
     params.push(`%${search}%`);
     where.push(
-      `(u.full_name ILIKE $${params.length} OR d.specialization ILIKE $${params.length} OR d.department ILIKE $${params.length})`
+      `(u.full_name ILIKE $${params.length} OR d.specialization ILIKE $${params.length} OR d.department ILIKE $${params.length} OR d.employee_code ILIKE $${params.length})`
     );
   }
   if (specialization) {
@@ -43,14 +48,23 @@ async function listDoctors({
         d.id,
         u.id AS "userId",
         u.full_name AS "fullName",
+        u.full_name AS "full_name",
         u.email,
         u.phone,
         d.specialization,
+        d.qualification,
         d.department,
         d.experience_years AS "experienceYears",
+        d.experience_years AS "years_experience",
         d.rating,
         d.consultation_fee_cents AS "consultationFeeCents",
-        d.biography
+        d.consultation_fee_cents AS "consultation_fee_cents",
+        (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
+        d.biography,
+        d.employee_code AS "employee_id",
+        d.employee_code AS "employee_code",
+        u.status,
+        d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       WHERE ${where.join(" AND ")}
@@ -70,16 +84,25 @@ async function findDoctorById(id) {
         d.hospital_id AS "hospitalId",
         d.user_id AS "userId",
         u.full_name AS "fullName",
+        u.full_name AS "full_name",
         u.email,
         u.phone,
         d.specialization,
+        d.qualification,
         d.department,
         d.employee_code AS "employeeCode",
+        d.employee_code AS "employee_id",
+        d.employee_code AS "employee_code",
         d.license_number AS "licenseNumber",
         d.experience_years AS "experienceYears",
+        d.experience_years AS "years_experience",
         d.rating,
         d.consultation_fee_cents AS "consultationFeeCents",
-        d.biography
+        d.consultation_fee_cents AS "consultation_fee_cents",
+        (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
+        d.biography,
+        u.status,
+        d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       WHERE d.id = $1
@@ -98,16 +121,25 @@ async function findDoctorByIdWithinHospital(id, hospitalId) {
         d.hospital_id AS "hospitalId",
         d.user_id AS "userId",
         u.full_name AS "fullName",
+        u.full_name AS "full_name",
         u.email,
         u.phone,
         d.specialization,
+        d.qualification,
         d.department,
         d.employee_code AS "employeeCode",
+        d.employee_code AS "employee_id",
+        d.employee_code AS "employee_code",
         d.license_number AS "licenseNumber",
         d.experience_years AS "experienceYears",
+        d.experience_years AS "years_experience",
         d.rating,
         d.consultation_fee_cents AS "consultationFeeCents",
-        d.biography
+        d.consultation_fee_cents AS "consultation_fee_cents",
+        (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
+        d.biography,
+        u.status,
+        d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       WHERE d.id = $1
@@ -127,10 +159,16 @@ async function findDoctorByUserId(userId, hospitalId) {
         d.hospital_id AS "hospitalId",
         d.user_id AS "userId",
         u.full_name AS "fullName",
+        u.full_name AS "full_name",
         u.email,
         d.specialization,
+        d.qualification,
         d.department,
-        d.consultation_fee_cents AS "consultationFeeCents"
+        d.consultation_fee_cents AS "consultationFeeCents",
+        d.consultation_fee_cents AS "consultation_fee_cents",
+        (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
+        u.status,
+        d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       WHERE d.user_id = $1
@@ -140,6 +178,126 @@ async function findDoctorByUserId(userId, hospitalId) {
     [userId, hospitalId]
   );
   return result.rows[0] || null;
+}
+
+async function createDoctor(hospitalId, data) {
+  return db.withTransaction(async (client) => {
+    // Get role id for doctor
+    const roleResult = await client.query(`SELECT id FROM roles WHERE code = 'doctor' LIMIT 1`);
+    const roleId = roleResult.rows[0]?.id;
+    if (!roleId) throw new Error("Doctor role not found");
+
+    // Insert user
+    const userResult = await client.query(
+      `INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone, status)
+       VALUES ($1, $2, $3, lower($4), $5, $6, $7)
+       RETURNING id`,
+      [
+        hospitalId,
+        roleId,
+        data.fullName || data.full_name,
+        data.email,
+        data.passwordHash,
+        data.phone || null,
+        data.status || 'active'
+      ]
+    );
+    const userId = userResult.rows[0].id;
+
+    // Create user_role association
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [userId, roleId]
+    );
+
+    // Insert doctor profile
+    const doctorResult = await client.query(
+      `INSERT INTO doctors (
+         hospital_id, user_id, employee_code, specialization, department,
+         license_number, experience_years, consultation_fee_cents, biography, qualification
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id`,
+      [
+        hospitalId,
+        userId,
+        data.employee_id || data.employee_code,
+        data.specialization,
+        data.department || 'General',
+        data.license_number || 'LIC-' + (data.employee_id || data.employee_code),
+        data.years_experience || data.experience_years || 0,
+        data.consultation_fee_cents || (data.consultation_fee ? data.consultation_fee * 100 : 5000),
+        data.biography || null,
+        data.qualification || 'MD'
+      ]
+    );
+
+    return doctorResult.rows[0].id;
+  });
+}
+
+async function updateDoctor(hospitalId, id, data) {
+  return db.withTransaction(async (client) => {
+    // Fetch doctor record to get userId
+    const docResult = await client.query(
+      `SELECT user_id FROM doctors WHERE id = $1 AND hospital_id = $2`,
+      [id, hospitalId]
+    );
+    const doctor = docResult.rows[0];
+    if (!doctor) return false;
+
+    const userId = doctor.user_id;
+
+    // Update user
+    await client.query(
+      `UPDATE users
+       SET full_name = $1, email = lower($2), phone = $3, status = $4, updated_at = now()
+       WHERE id = $5`,
+      [
+        data.fullName || data.full_name,
+        data.email,
+        data.phone || null,
+        data.status || 'active',
+        userId
+      ]
+    );
+
+    // Update doctor
+    await client.query(
+      `UPDATE doctors
+       SET employee_code = $1, specialization = $2, department = $3, license_number = $4,
+           experience_years = $5, consultation_fee_cents = $6, biography = $7, qualification = $8, updated_at = now()
+       WHERE id = $9`,
+      [
+        data.employee_id || data.employee_code,
+        data.specialization,
+        data.department || 'General',
+        data.license_number || 'LIC-' + (data.employee_id || data.employee_code),
+        data.years_experience || data.experience_years || 0,
+        data.consultation_fee_cents || (data.consultation_fee ? data.consultation_fee * 100 : 5000),
+        data.biography || null,
+        data.qualification || 'MD',
+        id
+      ]
+    );
+
+    return true;
+  });
+}
+
+async function updateDoctorStatus(hospitalId, id, status) {
+  const docResult = await db.query(
+    `SELECT user_id FROM doctors WHERE id = $1 AND hospital_id = $2`,
+    [id, hospitalId]
+  );
+  const doctor = docResult.rows[0];
+  if (!doctor) return false;
+
+  await db.query(
+    `UPDATE users SET status = $1, updated_at = now() WHERE id = $2`,
+    [status, doctor.user_id]
+  );
+  return true;
 }
 
 async function listAvailabilityRules(hospitalId, doctorId) {

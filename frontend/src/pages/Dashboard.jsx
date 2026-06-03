@@ -8,7 +8,7 @@ export default function DashboardPage() {
   const user = getUser();
 
   if (user?.role === "doctor") return <DoctorDashboard />;
-  if (user?.role === "admin") return <AdminDashboard />;
+  if (["super_admin", "hospital_admin", "admin"].includes(user?.role)) return <AdminDashboard />;
   if (user?.role === "receptionist") return <ReceptionDashboard />;
   return <PatientDashboard />;
 }

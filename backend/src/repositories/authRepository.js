@@ -149,6 +149,24 @@ async function touchLastLogin(userId) {
   console.log('[AuthRepository] touchLastLogin SQL query result:', result.rows);
 }
 
+async function getUserPermissions(userId) {
+  const result = await db.query(
+    `SELECT DISTINCT p.code
+     FROM user_roles ur
+     JOIN role_permissions rp ON rp.role_id = ur.role_id
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE ur.user_id = $1
+     UNION
+     SELECT DISTINCT p.code
+     FROM users u
+     JOIN role_permissions rp ON rp.role_id = u.role_id
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE u.id = $1`,
+    [userId]
+  );
+  return result.rows.map((row) => row.code);
+}
+
 module.exports = {
   findUserByEmail,
   findUserById,
@@ -157,4 +175,5 @@ module.exports = {
   findActiveRefreshTokenByHash,
   revokeRefreshTokenByHash,
   touchLastLogin,
+  getUserPermissions,
 };

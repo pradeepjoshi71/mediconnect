@@ -159,6 +159,77 @@ async function listMyTimeOff(user) {
   return doctorRepository.listTimeOff(user.hospitalId, user.doctorProfileId);
 }
 
+const bcrypt = require("bcrypt");
+
+async function getDoctorById(user, doctorId) {
+  const doctor = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
+  if (!doctor) {
+    throw new AppError(404, "Doctor not found");
+  }
+  return doctor;
+}
+
+async function createDoctor(user, data, context) {
+  const password = data.password || "Password@123";
+  const passwordHash = await bcrypt.hash(password, 12);
+  
+  const doctorId = await doctorRepository.createDoctor(user.hospitalId, {
+    ...data,
+    passwordHash
+  });
+
+  const createdDoctor = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "admin.doctor.create",
+    entityType: "doctor",
+    entityId: doctorId,
+    metadata: { employee_id: data.employee_id, email: data.email },
+    context,
+  });
+
+  return createdDoctor;
+}
+
+async function updateDoctor(user, doctorId, data, context) {
+  const updated = await doctorRepository.updateDoctor(user.hospitalId, doctorId, data);
+  if (!updated) {
+    throw new AppError(404, "Doctor not found");
+  }
+
+  const updatedDoctor = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "admin.doctor.update",
+    entityType: "doctor",
+    entityId: doctorId,
+    metadata: { employee_id: data.employee_id },
+    context,
+  });
+
+  return updatedDoctor;
+}
+
+async function updateDoctorStatus(user, doctorId, status, context) {
+  const updated = await doctorRepository.updateDoctorStatus(user.hospitalId, doctorId, status);
+  if (!updated) {
+    throw new AppError(404, "Doctor not found");
+  }
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "admin.doctor.status_update",
+    entityType: "doctor",
+    entityId: doctorId,
+    metadata: { status },
+    context,
+  });
+
+  return { id: doctorId, status };
+}
+
 module.exports = {
   listDoctors,
   getAvailabilityForDate,
@@ -166,4 +237,8 @@ module.exports = {
   listMyAvailability,
   addTimeOff,
   listMyTimeOff,
+  getDoctorById,
+  createDoctor,
+  updateDoctor,
+  updateDoctorStatus,
 };

@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Stethoscope,
+  UsersRound,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../services/authService";
@@ -31,11 +32,15 @@ function buildNavItems(role) {
   }
 
   if (role === "doctor") {
-    return shared;
+    return [
+      ...shared,
+      { to: "/patients", label: "Patients", icon: UsersRound },
+    ];
   }
 
   return [
     ...shared,
+    { to: "/patients", label: "Patients", icon: UsersRound },
     { to: "/doctors", label: "Doctors", icon: Stethoscope },
     { to: "/billing", label: "Billing", icon: CreditCard },
   ];
