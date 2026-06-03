@@ -7,6 +7,17 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 
+const ROLE_DASHBOARD = {
+  admin: "/dashboard",
+  doctor: "/dashboard",
+  receptionist: "/dashboard",
+  patient: "/dashboard",
+};
+
+function getDashboardForRole(role) {
+  return ROLE_DASHBOARD[role] || "/dashboard";
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -24,9 +35,9 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      await login(form);
+      const data = await login(form);
       toast.success("Signed in successfully");
-      navigate("/dashboard");
+      navigate(getDashboardForRole(data.user?.role));
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to sign in");
     } finally {

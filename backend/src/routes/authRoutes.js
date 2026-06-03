@@ -5,6 +5,13 @@ const authMiddleware = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
+router.use((req, res, next) => {
+  if (req.path === "/register" || req.path === "/login") {
+    console.log(`[Auth Route] Incoming request to ${req.path} with body:`, req.body);
+  }
+  next();
+});
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,

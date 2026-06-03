@@ -20,31 +20,43 @@ const loginSchema = z.object({
 });
 
 const register = asyncHandler(async (req, res) => {
-  const payload = registerSchema.parse(req.body);
-  const user = await authService.registerPatient({
-    ...payload,
-    auditContext: req.auditContext,
-  });
+  try {
+    const payload = registerSchema.parse(req.body);
+    const user = await authService.registerPatient({
+      ...payload,
+      auditContext: req.auditContext,
+    });
 
-  res.status(201).json({
-    message: "Patient account created",
-    user,
-  });
+    res.status(201).json({
+      message: "Patient account created",
+      user,
+    });
+  } catch (error) {
+    console.error("[Auth Controller Register] Caught exception:", error.message);
+    console.error("[Auth Controller Register] Full error stack:", error.stack);
+    throw error;
+  }
 });
 
 const login = asyncHandler(async (req, res) => {
-  const payload = loginSchema.parse(req.body);
-  const { accessToken, refreshToken, user } = await authService.login(
-    payload.email,
-    payload.password,
-    {
-      hospitalCode: payload.hospitalCode,
-      auditContext: req.auditContext,
-    }
-  );
+  try {
+    const payload = loginSchema.parse(req.body);
+    const { accessToken, refreshToken, user } = await authService.login(
+      payload.email,
+      payload.password,
+      {
+        hospitalCode: payload.hospitalCode,
+        auditContext: req.auditContext,
+      }
+    );
 
-  res.cookie("refresh_token", refreshToken, refreshCookieOptions());
-  res.json({ accessToken, user });
+    res.cookie("refresh_token", refreshToken, refreshCookieOptions());
+    res.json({ accessToken, user });
+  } catch (error) {
+    console.error("[Auth Controller Login] Caught exception:", error.message);
+    console.error("[Auth Controller Login] Full error stack:", error.stack);
+    throw error;
+  }
 });
 
 const refresh = asyncHandler(async (req, res) => {

@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DashboardPage from "./pages/Dashboard";
 import DoctorsPage from "./pages/DoctorsPage";
+import Doctors from "./pages/Doctors";
 import AppointmentsPage from "./pages/AppointmentsPage";
 import MedicalRecordsPage from "./pages/MedicalRecordsPage";
 import BillingPage from "./pages/BillingPage";
@@ -98,6 +99,7 @@ export default function App() {
             />
             <Route path="/appointments" element={<AppointmentsPage />} />
             <Route path="/records" element={<MedicalRecordsPage />} />
+            <Route path="/doctors-list" element={<Doctors />} />
             <Route
               path="/billing"
               element={

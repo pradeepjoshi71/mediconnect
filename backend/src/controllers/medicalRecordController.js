@@ -25,6 +25,30 @@ const consultationSchema = z.object({
     .min(1),
 });
 
+const diagnosisSchema = z.object({
+  medicalRecordId: z.number().int().positive().optional(),
+  icdCode: z.string().max(20).optional(),
+  description: z.string().min(2).max(1000),
+  severity: z.enum(["mild", "moderate", "severe", "critical"]).default("moderate"),
+  status: z.enum(["active", "resolved", "chronic", "monitoring"]).default("active"),
+  notes: z.string().max(2000).optional(),
+  onsetDate: z.string().date().optional(),
+  resolvedDate: z.string().date().optional(),
+});
+
+const allergySchema = z.object({
+  allergen: z.string().min(1).max(200),
+  allergyType: z.enum(["drug", "food", "environmental", "contact", "other"]).default("drug"),
+  reaction: z.string().max(500).optional(),
+  severity: z.enum(["mild", "moderate", "severe", "anaphylactic"]).default("moderate"),
+  status: z.enum(["active", "inactive", "resolved"]).default("active"),
+  onsetDate: z.string().date().optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+const patientIdParam = z.object({ patientId: z.coerce.number().int().positive() });
+const idParam = z.object({ id: z.coerce.number().int().positive() });
+
 const listMine = asyncHandler(async (req, res) => {
   res.json(await medicalRecordService.listOwnMedicalRecords(req.user, req.auditContext));
 });
@@ -58,9 +82,72 @@ const downloadPrescriptionPdf = asyncHandler(async (req, res) => {
   res.send(pdf.buffer);
 });
 
+// ─── Diagnoses ────────────────────────────────────────────────────────────────
+
+const listDiagnoses = asyncHandler(async (req, res) => {
+  const { patientId } = patientIdParam.parse(req.params);
+  res.json(await medicalRecordService.listDiagnoses(req.user, patientId, req.auditContext));
+});
+
+const createDiagnosis = asyncHandler(async (req, res) => {
+  const { patientId } = patientIdParam.parse(req.params);
+  const payload = diagnosisSchema.parse(req.body);
+  const result = await medicalRecordService.addDiagnosis(req.user, patientId, payload, req.auditContext);
+  res.status(201).json(result);
+});
+
+const updateDiagnosis = asyncHandler(async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  const payload = diagnosisSchema.partial().parse(req.body);
+  const result = await medicalRecordService.editDiagnosis(req.user, id, payload, req.auditContext);
+  res.json(result);
+});
+
+const deleteDiagnosis = asyncHandler(async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  await medicalRecordService.removeDiagnosis(req.user, id, req.auditContext);
+  res.status(204).send();
+});
+
+// ─── Allergies ────────────────────────────────────────────────────────────────
+
+const listAllergies = asyncHandler(async (req, res) => {
+  const { patientId } = patientIdParam.parse(req.params);
+  res.json(await medicalRecordService.listAllergies(req.user, patientId, req.auditContext));
+});
+
+const createAllergy = asyncHandler(async (req, res) => {
+  const { patientId } = patientIdParam.parse(req.params);
+  const payload = allergySchema.parse(req.body);
+  const result = await medicalRecordService.addAllergy(req.user, patientId, payload, req.auditContext);
+  res.status(201).json(result);
+});
+
+const updateAllergy = asyncHandler(async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  const payload = allergySchema.partial().parse(req.body);
+  const result = await medicalRecordService.editAllergy(req.user, id, payload, req.auditContext);
+  res.json(result);
+});
+
+const deleteAllergy = asyncHandler(async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  await medicalRecordService.removeAllergy(req.user, id, req.auditContext);
+  res.status(204).send();
+});
+
 module.exports = {
   listMine,
   listByPatient,
   createConsultation,
   downloadPrescriptionPdf,
+  listDiagnoses,
+  createDiagnosis,
+  updateDiagnosis,
+  deleteDiagnosis,
+  listAllergies,
+  createAllergy,
+  updateAllergy,
+  deleteAllergy,
 };
+

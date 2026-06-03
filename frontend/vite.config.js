@@ -9,7 +9,7 @@ export default defineConfig({
     allowedHosts: ["frontend", "localhost"],
     proxy: {
       "/api": {
-        target: "http://backend:5000",
+        target: process.env.BACKEND_URL || "http://localhost:5000",
         changeOrigin: true,
       },
     },

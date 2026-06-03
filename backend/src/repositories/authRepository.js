@@ -39,6 +39,7 @@ async function findUserByEmail(email, hospitalId) {
      LIMIT 1`,
     [email, hospitalId]
   );
+  console.log('[AuthRepository] findUserByEmail SQL query result:', result.rows);
   return result.rows[0] || null;
 }
 
@@ -72,14 +73,16 @@ async function createPatientUser({
 }) {
   return db.withTransaction(async (client) => {
     const roleId = await getRoleIdByCode("patient", client);
+    console.log('[AuthRepository] getRoleIdByCode SQL query result:', roleId);
     const userResult = await client.query(
       `INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone)
        VALUES ($1, $2, $3, lower($4), $5, $6)
        RETURNING id`,
       [hospitalId, roleId, fullName, email, passwordHash, phone || null]
     );
+    console.log('[AuthRepository] createPatientUser INSERT user SQL query result:', userResult.rows);
 
-    await client.query(
+    const patientResult = await client.query(
       `INSERT INTO patients (hospital_id, user_id, medical_record_number, date_of_birth, gender)
        VALUES ($1, $2, $3, $4, $5)`,
       [
@@ -90,6 +93,7 @@ async function createPatientUser({
         gender || null,
       ]
     );
+    console.log('[AuthRepository] createPatientUser INSERT patient SQL query result:', patientResult.rows);
 
     const created = await client.query(
       `${USER_SELECT}
@@ -97,17 +101,19 @@ async function createPatientUser({
        LIMIT 1`,
       [userResult.rows[0].id]
     );
+    console.log('[AuthRepository] createPatientUser SELECT created user SQL query result:', created.rows);
 
     return created.rows[0];
   });
 }
 
 async function insertRefreshToken({ hospitalId, userId, tokenHash, expiresAt }) {
-  await db.query(
+  const result = await db.query(
     `INSERT INTO refresh_tokens (hospital_id, user_id, token_hash, expires_at)
      VALUES ($1, $2, $3, $4)`,
     [hospitalId, userId, tokenHash, expiresAt]
   );
+  console.log('[AuthRepository] insertRefreshToken SQL query result:', result.rows);
 }
 
 async function findActiveRefreshTokenByHash(tokenHash) {
@@ -134,12 +140,13 @@ async function revokeRefreshTokenByHash(tokenHash) {
 }
 
 async function touchLastLogin(userId) {
-  await db.query(
+  const result = await db.query(
     `UPDATE users
      SET last_login_at = now()
      WHERE id = $1`,
     [userId]
   );
+  console.log('[AuthRepository] touchLastLogin SQL query result:', result.rows);
 }
 
 module.exports = {

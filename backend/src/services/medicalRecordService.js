@@ -172,9 +172,136 @@ async function buildPrescriptionPdf(user, medicalRecordId, context) {
   };
 }
 
+async function listDiagnoses(user, patientId, context) {
+  if (user.role === "patient" && Number(user.patientProfileId) !== Number(patientId)) {
+    throw new AppError(403, "Forbidden");
+  }
+  const diagnoses = await clinicalRepository.listDiagnosesByPatient(user.hospitalId, patientId);
+  await auditService.recordAuditEvent({
+    user, action: "ehr.diagnoses.list", entityType: "patient", entityId: patientId,
+    metadata: { count: diagnoses.length }, context,
+  });
+  return diagnoses;
+}
+
+async function addDiagnosis(user, patientId, payload, context) {
+  if (!["doctor", "admin"].includes(user.role)) {
+    throw new AppError(403, "Only clinicians can add diagnoses");
+  }
+  const id = await clinicalRepository.createDiagnosis({
+    hospitalId: user.hospitalId,
+    medicalRecordId: payload.medicalRecordId || null,
+    patientId,
+    doctorId: user.doctorProfileId,
+    icdCode: payload.icdCode,
+    description: payload.description,
+    severity: payload.severity,
+    status: payload.status,
+    notes: payload.notes,
+    onsetDate: payload.onsetDate,
+  });
+  await auditService.recordAuditEvent({
+    user, action: "ehr.diagnoses.create", entityType: "diagnosis", entityId: id,
+    metadata: { patientId }, context,
+  });
+  return { id };
+}
+
+async function editDiagnosis(user, diagnosisId, payload, context) {
+  if (!["doctor", "admin"].includes(user.role)) {
+    throw new AppError(403, "Only clinicians can edit diagnoses");
+  }
+  const updated = await clinicalRepository.updateDiagnosis(diagnosisId, user.hospitalId, payload);
+  if (!updated) throw new AppError(404, "Diagnosis not found");
+  await auditService.recordAuditEvent({
+    user, action: "ehr.diagnoses.update", entityType: "diagnosis", entityId: diagnosisId,
+    metadata: {}, context,
+  });
+  return updated;
+}
+
+async function removeDiagnosis(user, diagnosisId, context) {
+  if (!["doctor", "admin"].includes(user.role)) {
+    throw new AppError(403, "Only clinicians can delete diagnoses");
+  }
+  await clinicalRepository.deleteDiagnosis(diagnosisId, user.hospitalId);
+  await auditService.recordAuditEvent({
+    user, action: "ehr.diagnoses.delete", entityType: "diagnosis", entityId: diagnosisId,
+    metadata: {}, context,
+  });
+}
+
+async function listAllergies(user, patientId, context) {
+  if (user.role === "patient" && Number(user.patientProfileId) !== Number(patientId)) {
+    throw new AppError(403, "Forbidden");
+  }
+  const allergies = await clinicalRepository.listAllergiesByPatient(user.hospitalId, patientId);
+  await auditService.recordAuditEvent({
+    user, action: "ehr.allergies.list", entityType: "patient", entityId: patientId,
+    metadata: { count: allergies.length }, context,
+  });
+  return allergies;
+}
+
+async function addAllergy(user, patientId, payload, context) {
+  if (!["doctor", "admin", "nurse", "receptionist"].includes(user.role)) {
+    throw new AppError(403, "Insufficient role");
+  }
+  const id = await clinicalRepository.createAllergy({
+    hospitalId: user.hospitalId,
+    patientId,
+    allergen: payload.allergen,
+    allergyType: payload.allergyType,
+    reaction: payload.reaction,
+    severity: payload.severity,
+    status: payload.status,
+    onsetDate: payload.onsetDate,
+    notes: payload.notes,
+    createdByUserId: user.id,
+  });
+  await auditService.recordAuditEvent({
+    user, action: "ehr.allergies.create", entityType: "allergy", entityId: id,
+    metadata: { patientId }, context,
+  });
+  return { id };
+}
+
+async function editAllergy(user, allergyId, payload, context) {
+  if (!["doctor", "admin", "nurse", "receptionist"].includes(user.role)) {
+    throw new AppError(403, "Insufficient role");
+  }
+  const updated = await clinicalRepository.updateAllergy(allergyId, user.hospitalId, payload);
+  if (!updated) throw new AppError(404, "Allergy not found");
+  await auditService.recordAuditEvent({
+    user, action: "ehr.allergies.update", entityType: "allergy", entityId: allergyId,
+    metadata: {}, context,
+  });
+  return updated;
+}
+
+async function removeAllergy(user, allergyId, context) {
+  if (!["doctor", "admin"].includes(user.role)) {
+    throw new AppError(403, "Only clinicians can delete allergies");
+  }
+  await clinicalRepository.deleteAllergy(allergyId, user.hospitalId);
+  await auditService.recordAuditEvent({
+    user, action: "ehr.allergies.delete", entityType: "allergy", entityId: allergyId,
+    metadata: {}, context,
+  });
+}
+
 module.exports = {
   listOwnMedicalRecords,
   getPatientMedicalHistory,
   createConsultation,
   buildPrescriptionPdf,
+  listDiagnoses,
+  addDiagnosis,
+  editDiagnosis,
+  removeDiagnosis,
+  listAllergies,
+  addAllergy,
+  editAllergy,
+  removeAllergy,
 };
+

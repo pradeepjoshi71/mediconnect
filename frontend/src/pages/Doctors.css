@@ -1,0 +1,244 @@
+/* ─── Doctors page layout ──────────────────────────────────────── */
+.doctors-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.doctors-page__header {
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.doctors-page__eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #6366f1;
+  margin-bottom: 0.5rem;
+}
+
+.doctors-page__title {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  margin: 0 0 0.75rem;
+}
+
+.doctors-page__description {
+  font-size: 1rem;
+  color: #64748b;
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* dark mode header */
+@media (prefers-color-scheme: dark) {
+  .doctors-page__title  { color: #f8fafc; }
+  .doctors-page__eyebrow { color: #818cf8; }
+}
+
+/* ─── Grid ─────────────────────────────────────────────────────── */
+.doctors-page__grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .doctors-page__grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .doctors-page__grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ─── States (loading / error / empty) ─────────────────────────── */
+.doctors-page__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 5rem 1rem;
+  text-align: center;
+}
+
+.doctors-page__state--error { gap: 1.25rem; }
+
+.doctors-page__state-text {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.doctors-page__state--error .doctors-page__state-text {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.doctors-page__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: doctors-spin 0.75s linear infinite;
+}
+
+@keyframes doctors-spin {
+  to { transform: rotate(360deg); }
+}
+
+.doctors-page__retry {
+  padding: 0.5rem 1.5rem;
+  border-radius: 999px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.doctors-page__retry:hover { background: #4f46e5; }
+
+/* ─── Doctor Card ───────────────────────────────────────────────── */
+.doctor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.doctor-card:hover {
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.12);
+  transform: translateY(-2px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .doctor-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+}
+
+.doctor-card__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1 0%, #14b8a6 100%);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.doctor-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  flex: 1;
+}
+
+.doctor-card__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  margin: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .doctor-card__name { color: #f8fafc; }
+}
+
+/* Badges */
+.doctor-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.doctor-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.doctor-card__badge--specialty {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.doctor-card__badge--dept {
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+@media (prefers-color-scheme: dark) {
+  .doctor-card__badge--specialty { background: #312e81; color: #c7d2fe; }
+  .doctor-card__badge--dept      { background: #14532d; color: #bbf7d0; }
+}
+
+/* Stats row */
+.doctor-card__stats {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.doctor-card__stat {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.doctor-card__stat-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.doctor-card__stat-icon--star { color: #f59e0b; }
+
+.doctor-card__stat-value {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.doctor-card__stat-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .doctor-card__stat-value { color: #e2e8f0; }
+}
+
+/* Bio */
+.doctor-card__bio {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: #64748b;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

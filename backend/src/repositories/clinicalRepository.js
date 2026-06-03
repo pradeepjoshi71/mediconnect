@@ -290,4 +290,170 @@ module.exports = {
   listPatientTimeline,
   createMedicalRecordWithPrescriptions,
   findMedicalRecordById,
+  // diagnoses
+  listDiagnosesByPatient,
+  createDiagnosis,
+  updateDiagnosis,
+  deleteDiagnosis,
+  // allergies
+  listAllergiesByPatient,
+  createAllergy,
+  updateAllergy,
+  deleteAllergy,
 };
+
+// ─── Diagnoses ────────────────────────────────────────────────────────────────
+
+async function listDiagnosesByPatient(hospitalId, patientId) {
+  const result = await db.query(
+    `SELECT
+       d.id,
+       d.hospital_id      AS "hospitalId",
+       d.medical_record_id AS "medicalRecordId",
+       d.patient_id       AS "patientId",
+       d.doctor_id        AS "doctorId",
+       d.icd_code         AS "icdCode",
+       d.description,
+       d.severity,
+       d.status,
+       d.notes,
+       d.onset_date       AS "onsetDate",
+       d.resolved_date    AS "resolvedDate",
+       d.created_at       AS "createdAt",
+       d.updated_at       AS "updatedAt",
+       u.full_name        AS "doctorName"
+     FROM diagnoses d
+     JOIN doctors dr ON dr.id = d.doctor_id
+     JOIN users u   ON u.id  = dr.user_id
+     WHERE d.hospital_id = $1
+       AND d.patient_id  = $2
+     ORDER BY d.created_at DESC`,
+    [hospitalId, patientId]
+  );
+  return result.rows;
+}
+
+async function createDiagnosis({
+  hospitalId, medicalRecordId, patientId, doctorId,
+  icdCode, description, severity, status, notes, onsetDate,
+}) {
+  const result = await db.query(
+    `INSERT INTO diagnoses
+       (hospital_id, medical_record_id, patient_id, doctor_id,
+        icd_code, description, severity, status, notes, onset_date)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     RETURNING id`,
+    [hospitalId, medicalRecordId, patientId, doctorId,
+     icdCode || null, description, severity || "moderate",
+     status || "active", notes || null, onsetDate || null]
+  );
+  return result.rows[0].id;
+}
+
+async function updateDiagnosis(id, hospitalId, fields) {
+  const result = await db.query(
+    `UPDATE diagnoses
+     SET  description  = COALESCE($3, description),
+          icd_code     = COALESCE($4, icd_code),
+          severity     = COALESCE($5, severity),
+          status       = COALESCE($6, status),
+          notes        = COALESCE($7, notes),
+          onset_date   = COALESCE($8, onset_date),
+          resolved_date= COALESCE($9, resolved_date),
+          updated_at   = now()
+     WHERE id = $1 AND hospital_id = $2
+     RETURNING id`,
+    [id, hospitalId,
+     fields.description   || null,
+     fields.icdCode       || null,
+     fields.severity      || null,
+     fields.status        || null,
+     fields.notes         || null,
+     fields.onsetDate     || null,
+     fields.resolvedDate  || null]
+  );
+  return result.rows[0] || null;
+}
+
+async function deleteDiagnosis(id, hospitalId) {
+  await db.query(
+    `DELETE FROM diagnoses WHERE id = $1 AND hospital_id = $2`,
+    [id, hospitalId]
+  );
+}
+
+// ─── Allergies ────────────────────────────────────────────────────────────────
+
+async function listAllergiesByPatient(hospitalId, patientId) {
+  const result = await db.query(
+    `SELECT
+       id,
+       hospital_id        AS "hospitalId",
+       patient_id         AS "patientId",
+       allergen,
+       allergy_type       AS "allergyType",
+       reaction,
+       severity,
+       status,
+       onset_date         AS "onsetDate",
+       notes,
+       created_by_user_id AS "createdByUserId",
+       created_at         AS "createdAt",
+       updated_at         AS "updatedAt"
+     FROM allergies
+     WHERE hospital_id = $1 AND patient_id = $2
+     ORDER BY created_at DESC`,
+    [hospitalId, patientId]
+  );
+  return result.rows;
+}
+
+async function createAllergy({
+  hospitalId, patientId, allergen, allergyType,
+  reaction, severity, status, onsetDate, notes, createdByUserId,
+}) {
+  const result = await db.query(
+    `INSERT INTO allergies
+       (hospital_id, patient_id, allergen, allergy_type,
+        reaction, severity, status, onset_date, notes, created_by_user_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     RETURNING id`,
+    [hospitalId, patientId, allergen, allergyType || "drug",
+     reaction || null, severity || "moderate", status || "active",
+     onsetDate || null, notes || null, createdByUserId || null]
+  );
+  return result.rows[0].id;
+}
+
+async function updateAllergy(id, hospitalId, fields) {
+  const result = await db.query(
+    `UPDATE allergies
+     SET  allergen     = COALESCE($3, allergen),
+          allergy_type = COALESCE($4, allergy_type),
+          reaction     = COALESCE($5, reaction),
+          severity     = COALESCE($6, severity),
+          status       = COALESCE($7, status),
+          onset_date   = COALESCE($8, onset_date),
+          notes        = COALESCE($9, notes),
+          updated_at   = now()
+     WHERE id = $1 AND hospital_id = $2
+     RETURNING id`,
+    [id, hospitalId,
+     fields.allergen     || null,
+     fields.allergyType  || null,
+     fields.reaction     || null,
+     fields.severity     || null,
+     fields.status       || null,
+     fields.onsetDate    || null,
+     fields.notes        || null]
+  );
+  return result.rows[0] || null;
+}
+
+async function deleteAllergy(id, hospitalId) {
+  await db.query(
+    `DELETE FROM allergies WHERE id = $1 AND hospital_id = $2`,
+    [id, hospitalId]
+  );
+}
+

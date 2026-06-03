@@ -49,8 +49,8 @@ function errorMiddleware(error, req, res, _next) {
   });
 
   return res.status(500).json({
-    message: "Internal server error",
-    requestId: req.requestId,
+    error: error.message,
+    stack: process.env.NODE_ENV !== "production" ? error.stack : undefined
   });
 }
 

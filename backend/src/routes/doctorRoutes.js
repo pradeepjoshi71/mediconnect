@@ -9,25 +9,25 @@ router.get("/", authMiddleware, doctorController.listDoctors);
 router.get(
   "/me/availability",
   authMiddleware,
-  roleMiddleware("doctor", "admin"),
+  roleMiddleware("doctor", "admin", "receptionist"),
   doctorController.getMyAvailability
 );
 router.put(
   "/me/availability",
   authMiddleware,
-  roleMiddleware("doctor", "admin"),
+  roleMiddleware("doctor", "admin", "receptionist"),
   doctorController.updateMyAvailability
 );
 router.get(
   "/me/time-off",
   authMiddleware,
-  roleMiddleware("doctor", "admin"),
+  roleMiddleware("doctor", "admin", "receptionist"),
   doctorController.listMyTimeOff
 );
 router.post(
   "/me/time-off",
   authMiddleware,
-  roleMiddleware("doctor", "admin"),
+  roleMiddleware("doctor", "admin", "receptionist"),
   doctorController.addTimeOff
 );
 router.get("/:doctorId/availability", authMiddleware, doctorController.getAvailability);

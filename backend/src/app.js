@@ -23,6 +23,8 @@ const intelligenceRoutes = require("./routes/intelligenceRoutes");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./utils/swagger");
 
 function buildCorsOptions() {
   const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
@@ -118,6 +120,9 @@ app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/intelligence", intelligenceRoutes);
 app.use("/api/v1/telemedicine", telemedicineRoutes);
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
