@@ -437,6 +437,16 @@ VALUES
     '+91-22-4412-8800',
     'billing.mum@mediconnect.local',
     '{"theme":{"accent":"brand"},"appointments":{"defaultSlotMinutes":20},"compliance":{"auditRetentionDays":3650}}'::jsonb
+  ),
+  (
+    'PRADEEP',
+    'mediconnect-pradeep',
+    'MediConnect Pradeep Hospital',
+    'Asia/Kolkata',
+    'IN',
+    '+91-80-4412-3300',
+    'billing.pradeep@mediconnect.local',
+    '{"theme":{"accent":"teal"},"appointments":{"defaultSlotMinutes":30},"compliance":{"auditRetentionDays":3650}}'::jsonb
   );
 
 INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone, status)

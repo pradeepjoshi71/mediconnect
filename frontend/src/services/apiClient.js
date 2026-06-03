@@ -23,7 +23,7 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    if (!originalRequest || originalRequest._retry || status !== 401) {
+    if (!originalRequest || originalRequest._retry || status !== 401 || originalRequest.url?.includes("/auth/refresh")) {
       throw error;
     }
 

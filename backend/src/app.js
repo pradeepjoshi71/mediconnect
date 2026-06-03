@@ -73,6 +73,10 @@ app.use(
   })
 );
 
+app.get("/", (_req, res) => {
+  res.json({ status: "ok", service: "backend", message: "MediConnect API is running" });
+});
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "backend" });
 });
