@@ -12,6 +12,7 @@ const INVOICE_SELECT = `
     inv.tax_amount AS "taxAmount",
     inv.discount_amount AS "discountAmount",
     inv.total_amount AS "totalAmount",
+    (inv.total_amount * 100)::integer AS "amountCents",
     inv.status,
     inv.created_at AS "createdAt",
     inv.updated_at AS "updatedAt",

@@ -23,6 +23,7 @@ const recordRoutes = require("./routes/recordRoutes");
 const documentRoutes = require("./routes/documentRoutes");
 const telemedicineRoutes = require("./routes/telemedicineRoutes");
 const intelligenceRoutes = require("./routes/intelligenceRoutes");
+const invoiceRoutes = require("./routes/invoiceRoutes");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -139,6 +140,10 @@ app.use("/api/records", recordRoutes);
 app.use("/api/v1/records", recordRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/v1/documents", documentRoutes);
+
+// Phase 3 API Mounts
+app.use("/api/invoices", invoiceRoutes);
+app.use("/api/v1/invoices", invoiceRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

@@ -1,8 +1,29 @@
 import api from "./apiClient";
 import { downloadProtectedFile } from "./downloadService";
 
+export async function createOrder(invoiceId, paymentMethod = "UPI") {
+  const response = await api.post("/payments/create-order", { invoiceId, paymentMethod });
+  return response.data;
+}
+
+export async function verifyPayment(data) {
+  const response = await api.post("/payments/verify", data);
+  return response.data;
+}
+
+export async function refundPayment(paymentId, amount) {
+  const response = await api.post("/payments/refund", { paymentId, amount });
+  return response.data;
+}
+
+export async function getHistory() {
+  const response = await api.get("/payments/history");
+  return response.data;
+}
+
+// Legacy backward-compatibility exports
 export async function listPayments() {
-  const response = await api.get("/payments");
+  const response = await api.get("/payments/history");
   return response.data;
 }
 
@@ -16,6 +37,6 @@ export async function updatePaymentStatus(paymentId, status) {
   return response.data;
 }
 
-export async function downloadInvoicePdf(paymentId) {
-  await downloadProtectedFile(`/payments/${paymentId}/invoice-pdf`, `invoice-${paymentId}.pdf`);
+export async function downloadInvoicePdf(invoiceId) {
+  await downloadProtectedFile(`/payments/${invoiceId}/invoice-pdf`, `invoice-${invoiceId}.pdf`);
 }
