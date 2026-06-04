@@ -11,6 +11,7 @@ import AdminLogin from "./pages/AdminLogin";
 import DashboardPage from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminDoctors from "./pages/AdminDoctors";
+import AdminPatients from "./pages/AdminPatients";
 import DoctorsPage from "./pages/DoctorsPage";
 import Doctors from "./pages/Doctors";
 import AppointmentsPage from "./pages/AppointmentsPage";
@@ -89,13 +90,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/admin/login" element={<AdminLogin />} />
 
         <Route element={<ProtectedAdminRoute />}>
           <Route element={<AppShell />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/doctors" element={<AdminDoctors />} />
+            <Route path="/admin/patients" element={<AdminPatients />} />
           </Route>
         </Route>
 

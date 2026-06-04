@@ -5,7 +5,7 @@ const auditService = require("./auditService");
 const { AppError } = require("../utils/http");
 
 async function listPatients(user, search) {
-  if (!["doctor", "admin", "receptionist"].includes(user.role)) {
+  if (!["doctor", "admin", "receptionist", "super_admin", "hospital_admin"].includes(user.role)) {
     throw new AppError(403, "You do not have access to patient search");
   }
   return patientRepository.listPatients(user.hospitalId, search);

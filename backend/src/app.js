@@ -138,6 +138,7 @@ app.use("/api/v1/admin", adminDashboardRoutes);
 app.use("/api/patients", patientRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/api/v1/records", recordRoutes);
+app.use("/api/medical-records", recordRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/v1/documents", documentRoutes);
 

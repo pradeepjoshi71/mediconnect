@@ -23,6 +23,7 @@ async function findPatientById(id, hospitalId) {
         u.full_name AS "fullName",
         u.email,
         u.phone,
+        u.status AS "status",
         p.medical_record_number AS "medicalRecordNumber",
         p.date_of_birth AS "dateOfBirth",
         p.gender,
@@ -57,6 +58,7 @@ async function findPatientByUserId(userId, hospitalId) {
         u.full_name AS "fullName",
         u.email,
         u.phone,
+        u.status AS "status",
         p.medical_record_number AS "medicalRecordNumber",
         p.date_of_birth AS "dateOfBirth",
         p.gender,
@@ -101,6 +103,7 @@ async function listPatients(hospitalId, search = "") {
         u.full_name AS "fullName",
         u.email,
         u.phone,
+        u.status AS "status",
         p.medical_record_number AS "medicalRecordNumber",
         p.date_of_birth AS "dateOfBirth",
         p.gender,
@@ -191,26 +194,28 @@ async function createPatient(hospitalId, data) {
 
 async function updatePatient(hospitalId, id, data) {
   return db.withTransaction(async (client) => {
-    // Find patient user id
+    // Find patient user id and status
     const patResult = await client.query(
-      `SELECT user_id FROM patients WHERE id = $1 AND hospital_id = $2`,
+      `SELECT p.user_id, u.status FROM patients p JOIN users u ON u.id = p.user_id WHERE p.id = $1 AND p.hospital_id = $2`,
       [id, hospitalId]
     );
     const patient = patResult.rows[0];
     if (!patient) return false;
 
     const userId = patient.user_id;
+    const currentStatus = patient.status;
     const fullName = `${data.first_name || data.firstName || ""} ${data.last_name || data.lastName || ""}`.trim();
 
     // Update user
     await client.query(
       `UPDATE users
-       SET full_name = $1, email = lower($2), phone = $3, updated_at = now()
-       WHERE id = $4`,
+       SET full_name = $1, email = lower($2), phone = $3, status = $4, updated_at = now()
+       WHERE id = $5`,
       [
         fullName,
         data.email,
         data.phone || null,
+        data.status || currentStatus,
         userId
       ]
     );

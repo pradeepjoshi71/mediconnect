@@ -22,15 +22,16 @@ const updatePatientSchema = z.object({
   first_name: z.string().trim().min(1).max(60),
   last_name: z.string().trim().min(1).max(60),
   email: z.string().trim().email().max(255),
-  phone: z.string().trim().max(24).optional(),
+  phone: z.string().trim().max(24).optional().nullable(),
   gender: z.enum(["male", "female", "other", "undisclosed"]).optional().default("undisclosed"),
-  date_of_birth: z.string().date().optional(),
-  blood_group: z.string().max(5).optional(),
-  address: z.string().optional(),
-  emergency_contact_name: z.string().max(120).optional(),
-  emergency_contact_phone: z.string().max(24).optional(),
-  insurance_provider: z.string().max(120).optional(),
-  insurance_policy_number: z.string().max(80).optional(),
+  date_of_birth: z.string().date().optional().nullable(),
+  blood_group: z.string().max(5).optional().nullable(),
+  address: z.string().optional().nullable(),
+  emergency_contact_name: z.string().max(120).optional().nullable(),
+  emergency_contact_phone: z.string().max(24).optional().nullable(),
+  insurance_provider: z.string().max(120).optional().nullable(),
+  insurance_policy_number: z.string().max(80).optional().nullable(),
+  status: z.enum(["active", "inactive"]).optional(),
 });
 
 const listPatients = asyncHandler(async (req, res) => {
@@ -39,8 +40,8 @@ const listPatients = asyncHandler(async (req, res) => {
 });
 
 const getPatientSummary = asyncHandler(async (req, res) => {
-  const params = z.object({ patientId: z.coerce.number().int().positive() }).parse(req.params);
-  res.json(await patientService.getPatientSummary(req.user, params.patientId, req.auditContext));
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  res.json(await patientService.getPatientSummary(req.user, params.id, req.auditContext));
 });
 
 const createPatient = asyncHandler(async (req, res) => {

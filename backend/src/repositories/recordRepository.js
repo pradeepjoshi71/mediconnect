@@ -14,6 +14,7 @@ async function listMedicalRecords(hospitalId, patientId) {
        mr.treatment_plan,
        mr.prescription,
        mr.doctor_notes,
+       mr.notes,
        mr.follow_up_date,
        mr.created_at,
        u_doc.full_name AS doctor_name,
@@ -32,6 +33,8 @@ async function findMedicalRecordById(hospitalId, id) {
   const result = await db.query(
     `SELECT
        mr.*,
+       mr.doctor_notes AS doctor_notes,
+       mr.notes AS notes,
        u_doc.full_name AS doctor_name,
        d.specialization AS doctor_specialization
      FROM medical_records mr
@@ -49,9 +52,9 @@ async function createMedicalRecord(hospitalId, data) {
     `INSERT INTO medical_records (
        hospital_id, patient_id, doctor_id, appointment_id,
        symptoms, chief_complaint, diagnosis, treatment_plan, clinical_notes,
-       prescription, doctor_notes, follow_up_date
+       prescription, doctor_notes, notes, follow_up_date
      )
-     VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $7, $8, $9, $10)
+     VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $7, $8, $9, $9, $10)
      RETURNING id`,
     [
       hospitalId,
@@ -62,7 +65,7 @@ async function createMedicalRecord(hospitalId, data) {
       data.diagnosis || "",
       data.treatment_plan || "",
       data.prescription || "",
-      data.doctor_notes || "",
+      data.notes || data.doctor_notes || "",
       data.follow_up_date || data.followUpDate || null
     ]
   );
@@ -76,7 +79,7 @@ async function updateMedicalRecord(hospitalId, id, data) {
          diagnosis = $2,
          treatment_plan = $3, clinical_notes = $3,
          prescription = $4,
-         doctor_notes = $5,
+         doctor_notes = $5, notes = $5,
          follow_up_date = $6,
          updated_at = now()
      WHERE id = $7 AND hospital_id = $8
@@ -86,7 +89,7 @@ async function updateMedicalRecord(hospitalId, id, data) {
       data.diagnosis,
       data.treatment_plan,
       data.prescription || "",
-      data.doctor_notes || "",
+      data.notes || data.doctor_notes || "",
       data.follow_up_date || data.followUpDate || null,
       id,
       hospitalId

@@ -27,7 +27,7 @@ router.put(
 );
 
 router.get(
-  "/:patientId",
+  "/:id",
   authMiddleware,
   roleMiddleware("patient", "doctor", "admin", "super_admin", "hospital_admin"),
   patientController.getPatientSummary

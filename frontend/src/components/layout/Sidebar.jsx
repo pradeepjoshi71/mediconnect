@@ -41,7 +41,7 @@ function buildNavItems(role) {
 
   return [
     ...shared,
-    { to: "/patients", label: "Patients", icon: UsersRound },
+    { to: isAdmin ? "/admin/patients" : "/patients", label: "Patients", icon: UsersRound },
     { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
     { to: "/billing", label: "Billing", icon: CreditCard },
   ];
