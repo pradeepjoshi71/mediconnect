@@ -30,6 +30,7 @@ const pharmacyRoutes = require("./routes/pharmacyRoutes");
 const hospitalRoutes = require("./routes/hospitalRoutes");
 const storageRoutes = require("./routes/storageRoutes");
 const pushRoutes = require("./routes/pushRoutes");
+const minioService = require("./services/minioService");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -120,6 +121,11 @@ app.get("/api/v1/health/ready", async (_req, res) => {
     },
   });
 });
+
+// Provision MinIO buckets (non-blocking — failure does not abort startup)
+minioService.ensureBuckets().catch((err) =>
+  logger.error('MinIO: startup bucket provisioning failed', { error: err.message })
+);
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
