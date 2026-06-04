@@ -1,34 +1,36 @@
-const router = require('express').Router();
-const { authenticate } = require('../middlewares/authMiddleware');
-const { requireRole } = require('../middlewares/roleMiddleware');
+const express = require('express');
+const authMiddleware = require('../middlewares/authMiddleware');
+const roleMiddleware = require('../middlewares/roleMiddleware');
 const ctrl = require('../controllers/storageController');
 
-/**
- * @route  POST /api/v1/storage/upload
- * @desc   Upload file to MinIO
- * @access Authenticated
- */
-router.post('/upload', authenticate, ctrl.upload.single('file'), ctrl.uploadFile);
+const router = express.Router();
+
+const adminRoles = ['admin', 'hospital_admin', 'super_admin'];
 
 /**
- * @route  GET /api/v1/storage/files
- * @desc   List file metadata
- * @access Authenticated
+ * POST /api/v1/storage/upload
+ * Upload a file to MinIO. Scoped to caller's hospital via controller
+ * (uses req.user.hospitalId — no cross-tenant risk).
  */
-router.get('/files', authenticate, ctrl.listFiles);
+router.post('/upload', authMiddleware, ctrl.upload.single('file'), ctrl.uploadFile);
 
 /**
- * @route  GET /api/v1/storage/files/:id/url
- * @desc   Get pre-signed download URL
- * @access Authenticated
+ * GET /api/v1/storage/files
+ * List file metadata. Controller scopes by req.user.hospitalId.
  */
-router.get('/files/:id/url', authenticate, ctrl.getDownloadUrl);
+router.get('/files', authMiddleware, ctrl.listFiles);
 
 /**
- * @route  DELETE /api/v1/storage/files/:id
- * @desc   Delete file from MinIO and metadata
- * @access Admin
+ * GET /api/v1/storage/files/:id/url
+ * Get pre-signed download URL. Controller validates hospital ownership.
  */
-router.delete('/files/:id', authenticate, requireRole(['admin', 'super_admin', 'hospital_admin']), ctrl.deleteFile);
+router.get('/files/:id/url', authMiddleware, ctrl.getDownloadUrl);
+
+/**
+ * DELETE /api/v1/storage/files/:id
+ * Delete a file. Controller validates hospital ownership.
+ * Restricted to admin roles.
+ */
+router.delete('/files/:id', authMiddleware, roleMiddleware(...adminRoles), ctrl.deleteFile);
 
 module.exports = router;

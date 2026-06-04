@@ -164,9 +164,20 @@ async function refresh(refreshToken) {
   };
 }
 
-async function logout(refreshToken) {
+async function logout(refreshToken, { user, auditContext } = {}) {
   if (!refreshToken) return;
   await authRepository.revokeRefreshTokenByHash(hashRefreshToken(refreshToken));
+
+  if (user?.id && user?.hospitalId) {
+    await auditService.recordAuditEvent({
+      user,
+      action: "auth.logout",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { email: user.email },
+      context: auditContext,
+    });
+  }
 }
 
 async function getCurrentUser(userId) {

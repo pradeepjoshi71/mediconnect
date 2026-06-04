@@ -85,6 +85,8 @@ async function updateInvoice(user, id, payload, context) {
       action: "billing.invoice.update",
       entityType: "invoice",
       entityId: id,
+      oldValue: { status: invoice.status, totalAmount: Number(invoice.totalAmount) },
+      newValue: { status: data.status, totalAmount },
       metadata: { invoiceNumber: invoice.invoiceNumber, totalAmount },
       context
     });
@@ -174,6 +176,8 @@ async function cancelInvoice(user, id, context) {
       action: "billing.invoice.cancel",
       entityType: "invoice",
       entityId: id,
+      oldValue: { status: invoice.status },
+      newValue: { status: "cancelled" },
       metadata: { invoiceNumber: invoice.invoiceNumber },
       context
     });

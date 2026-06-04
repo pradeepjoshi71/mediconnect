@@ -65,7 +65,10 @@ const refresh = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  await authService.logout(req.cookies?.refresh_token);
+  await authService.logout(req.cookies?.refresh_token, {
+    user: req.user || null,
+    auditContext: req.auditContext,
+  });
   res.clearCookie("refresh_token", refreshCookieOptions());
   res.status(204).send();
 });

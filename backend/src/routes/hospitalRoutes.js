@@ -1,47 +1,72 @@
-const router = require('express').Router();
-const { authenticate } = require('../middlewares/authMiddleware');
-const { requireRole } = require('../middlewares/roleMiddleware');
+const express = require('express');
+const authMiddleware = require('../middlewares/authMiddleware');
+const roleMiddleware = require('../middlewares/roleMiddleware');
+const tenantGuard = require('../middlewares/tenantGuard');
 const ctrl = require('../controllers/hospitalController');
 
-/**
- * @route  GET /api/v1/hospitals
- * @desc   List all hospitals
- * @access Super Admin
- */
-router.get('/', authenticate, requireRole(['super_admin']), ctrl.listHospitals);
+const router = express.Router();
+
+const adminRoles = ['admin', 'hospital_admin', 'super_admin'];
+const allStaffRoles = ['admin', 'hospital_admin', 'super_admin', 'doctor', 'receptionist', 'pharmacist', 'lab_technician'];
 
 /**
- * @route  GET /api/v1/hospitals/:id
- * @desc   Get hospital by ID
- * @access Admin+
+ * GET /api/v1/hospitals
+ * List all hospitals — super_admin only (cross-tenant by nature).
  */
-router.get('/:id', authenticate, requireRole(['admin', 'hospital_admin', 'super_admin']), ctrl.getHospital);
+router.get(
+  '/',
+  authMiddleware,
+  roleMiddleware('super_admin'),
+  ctrl.listHospitals
+);
 
 /**
- * @route  GET /api/v1/hospitals/:hospitalId/departments
- * @desc   List departments of a hospital
- * @access Admin+
+ * GET /api/v1/hospitals/:id
+ * Get a single hospital. tenantGuard ensures non-super-admins
+ * can only fetch their own hospital.
  */
-router.get('/:hospitalId/departments', authenticate,
-  requireRole(['admin', 'hospital_admin', 'super_admin', 'doctor', 'receptionist', 'pharmacist', 'lab_technician']),
-  ctrl.listDepartments);
+router.get(
+  '/:id',
+  authMiddleware,
+  roleMiddleware(...adminRoles),
+  tenantGuard,
+  ctrl.getHospital
+);
 
 /**
- * @route  POST /api/v1/hospitals/:hospitalId/departments
- * @desc   Create/update department
- * @access Admin
+ * GET /api/v1/hospitals/:hospitalId/departments
+ * List departments. tenantGuard enforces caller's hospital scope.
  */
-router.post('/:hospitalId/departments', authenticate,
-  requireRole(['admin', 'hospital_admin', 'super_admin']),
-  ctrl.createDepartment);
+router.get(
+  '/:hospitalId/departments',
+  authMiddleware,
+  roleMiddleware(...allStaffRoles),
+  tenantGuard,
+  ctrl.listDepartments
+);
 
 /**
- * @route  GET /api/v1/hospitals/audit-logs
- * @desc   List audit logs for current hospital
- * @access Admin
+ * POST /api/v1/hospitals/:hospitalId/departments
+ * Create/update department. tenantGuard enforces caller's hospital scope.
  */
-router.get('/audit/logs', authenticate,
-  requireRole(['admin', 'hospital_admin', 'super_admin']),
-  ctrl.getAuditLogs);
+router.post(
+  '/:hospitalId/departments',
+  authMiddleware,
+  roleMiddleware(...adminRoles),
+  tenantGuard,
+  ctrl.createDepartment
+);
+
+/**
+ * GET /api/v1/hospitals/audit/logs
+ * Returns audit logs scoped to caller's hospital (or all for super_admin).
+ * NOTE: must be registered BEFORE /:id to avoid route collision.
+ */
+router.get(
+  '/audit/logs',
+  authMiddleware,
+  roleMiddleware(...adminRoles),
+  ctrl.getAuditLogs
+);
 
 module.exports = router;

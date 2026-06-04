@@ -11,6 +11,8 @@ async function createAuditLog({
   ipAddress,
   userAgent,
   metadata,
+  oldValue,
+  newValue,
 }) {
   const result = await db.query(
     `
@@ -24,9 +26,11 @@ async function createAuditLog({
         request_id,
         ip_address,
         user_agent,
-        metadata
+        metadata,
+        old_value,
+        new_value
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING
         id,
         hospital_id AS "hospitalId",
@@ -39,6 +43,8 @@ async function createAuditLog({
         ip_address AS "ipAddress",
         user_agent AS "userAgent",
         metadata,
+        old_value AS "oldValue",
+        new_value AS "newValue",
         created_at AS "createdAt"
     `,
     [
@@ -52,6 +58,8 @@ async function createAuditLog({
       ipAddress || null,
       userAgent || null,
       metadata || {},
+      oldValue ? JSON.stringify(oldValue) : null,
+      newValue ? JSON.stringify(newValue) : null,
     ]
   );
   return result.rows[0];
@@ -86,6 +94,8 @@ async function listAuditLogs({ hospitalId, limit = 50, action, userId }) {
         al.ip_address AS "ipAddress",
         al.user_agent AS "userAgent",
         al.metadata,
+        al.old_value AS "oldValue",
+        al.new_value AS "newValue",
         al.created_at AS "createdAt",
         u.full_name AS "userName"
       FROM audit_logs al

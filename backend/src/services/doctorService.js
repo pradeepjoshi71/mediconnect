@@ -185,6 +185,7 @@ async function createDoctor(user, data, context) {
     action: "admin.doctor.create",
     entityType: "doctor",
     entityId: doctorId,
+    newValue: { employee_id: data.employee_id, email: data.email, specialization: data.specialization },
     metadata: { employee_id: data.employee_id, email: data.email },
     context,
   });
@@ -193,6 +194,9 @@ async function createDoctor(user, data, context) {
 }
 
 async function updateDoctor(user, doctorId, data, context) {
+  // Capture before state for audit trail
+  const before = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
+
   const updated = await doctorRepository.updateDoctor(user.hospitalId, doctorId, data);
   if (!updated) {
     throw new AppError(404, "Doctor not found");
@@ -205,6 +209,8 @@ async function updateDoctor(user, doctorId, data, context) {
     action: "admin.doctor.update",
     entityType: "doctor",
     entityId: doctorId,
+    oldValue: before ? { specialization: before.specialization, status: before.status, department: before.department } : null,
+    newValue: { specialization: data.specialization, status: data.status, department: data.department },
     metadata: { employee_id: data.employee_id },
     context,
   });
@@ -213,6 +219,9 @@ async function updateDoctor(user, doctorId, data, context) {
 }
 
 async function updateDoctorStatus(user, doctorId, status, context) {
+  // Capture before state
+  const before = await doctorRepository.findDoctorByIdWithinHospital(doctorId, user.hospitalId);
+
   const updated = await doctorRepository.updateDoctorStatus(user.hospitalId, doctorId, status);
   if (!updated) {
     throw new AppError(404, "Doctor not found");
@@ -223,6 +232,8 @@ async function updateDoctorStatus(user, doctorId, status, context) {
     action: "admin.doctor.status_update",
     entityType: "doctor",
     entityId: doctorId,
+    oldValue: before ? { status: before.status } : null,
+    newValue: { status },
     metadata: { status },
     context,
   });
