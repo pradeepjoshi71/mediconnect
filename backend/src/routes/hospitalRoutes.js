@@ -21,6 +21,18 @@ router.get(
 );
 
 /**
+ * GET /api/v1/hospitals/audit/logs
+ * Returns audit logs scoped to caller's hospital (or all for super_admin).
+ * NOTE: must be registered BEFORE /:id to avoid route collision.
+ */
+router.get(
+  '/audit/logs',
+  authMiddleware,
+  roleMiddleware(...adminRoles),
+  ctrl.getAuditLogs
+);
+
+/**
  * GET /api/v1/hospitals/:id
  * Get a single hospital. tenantGuard ensures non-super-admins
  * can only fetch their own hospital.
@@ -55,18 +67,6 @@ router.post(
   roleMiddleware(...adminRoles),
   tenantGuard,
   ctrl.createDepartment
-);
-
-/**
- * GET /api/v1/hospitals/audit/logs
- * Returns audit logs scoped to caller's hospital (or all for super_admin).
- * NOTE: must be registered BEFORE /:id to avoid route collision.
- */
-router.get(
-  '/audit/logs',
-  authMiddleware,
-  roleMiddleware(...adminRoles),
-  ctrl.getAuditLogs
 );
 
 module.exports = router;

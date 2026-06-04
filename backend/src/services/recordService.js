@@ -10,6 +10,14 @@ async function checkAccess(user, patientId) {
   if (!isSelf && !isStaff) {
     throw new AppError(403, "You do not have access to this patient's medical records");
   }
+
+  // Cross-tenant validation: non-super-admins must only access patients within their own hospital
+  if (user.role !== "super_admin") {
+    const patient = await patientRepository.findPatientById(patientId, user.hospitalId);
+    if (!patient) {
+      throw new AppError(404, "Patient not found");
+    }
+  }
 }
 
 async function getMedicalHistory(user, patientId, context) {

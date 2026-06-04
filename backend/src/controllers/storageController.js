@@ -1,5 +1,7 @@
 const minioService = require('../services/minioService');
 const fileMetadataRepo = require('../repositories/fileMetadataRepository');
+const auditService = require('../services/auditService');
+const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -12,15 +14,6 @@ const upload = multer({
 
 /**
  * Maps resource_type (sent by the caller) → MinIO bucket name.
- *
- * Resource types:
- *   lab_report        → lab-reports
- *   prescription      → prescriptions
- *   invoice           → invoices
- *   patient_document  → patient-documents
- *   profile_image     → profile-images
- *   hospital_logo     → hospital-logos
- *   doctor_document   → doctor-documents
  */
 const BUCKET_MAP = {
   lab_report:       'lab-reports',
@@ -36,18 +29,20 @@ const DEFAULT_BUCKET = 'patient-documents';
 
 /**
  * POST /api/v1/storage/upload
- * Multipart upload — file goes to MinIO, metadata saved to DB.
- *
- * Body (form-data):
- *   file         — the file binary
- *   resourceType — one of the keys in BUCKET_MAP
- *   resourceId   — (optional) PK of the associated record
  */
 async function uploadFile(req, res, next) {
   try {
     const { resourceType, resourceId } = req.body;
     const file = req.file;
     if (!file) throw new AppError(400, 'No file uploaded');
+
+    // Role-based upload validation
+    if (req.user.role === 'patient') {
+      const allowedPatientTypes = ['patient_document', 'profile_image'];
+      if (!allowedPatientTypes.includes(resourceType)) {
+        throw new AppError(403, 'Forbidden: Patients are only allowed to upload patient_document or profile_image');
+      }
+    }
 
     const bucket = BUCKET_MAP[resourceType] || DEFAULT_BUCKET;
     const ext = path.extname(file.originalname) || '';
@@ -77,6 +72,21 @@ async function uploadFile(req, res, next) {
       isPublic:     false,
     });
 
+    await auditService.recordAuditEvent({
+      user: req.user,
+      action: 'storage.file.upload',
+      entityType: 'file_metadata',
+      entityId: meta.id,
+      metadata: {
+        fileName: file.originalname,
+        bucketName: bucket,
+        objectKey,
+        resourceType: resourceType || null,
+        resourceId: resourceId ? parseInt(resourceId, 10) : null,
+      },
+      context: req.auditContext,
+    });
+
     res.status(201).json({ success: true, file: meta });
   } catch (err) {
     next(err);
@@ -85,10 +95,6 @@ async function uploadFile(req, res, next) {
 
 /**
  * GET /api/v1/storage/files/:id/url
- * Returns a pre-signed download URL for the requested file.
- * Validates hospital ownership before issuing the URL.
- *
- * Query param: expiry (seconds, default 3600, max 86400)
  */
 async function getDownloadUrl(req, res, next) {
   try {
@@ -100,10 +106,61 @@ async function getDownloadUrl(req, res, next) {
       throw new AppError(403, 'Forbidden');
     }
 
+    // Role-based download validation for patients
+    if (req.user.role === 'patient') {
+      // Patients must never access doctor documents, hospital documents/logos, or administrative files
+      const forbiddenResourceTypes = ['doctor_document', 'hospital_logo', 'administrative_document'];
+      if (forbiddenResourceTypes.includes(meta.resource_type)) {
+        throw new AppError(403, 'Forbidden: Patients are not allowed to access this resource type');
+      }
+
+      const isOwner = meta.uploaded_by === req.user.id;
+      let isAuthorized = isOwner;
+
+      if (!isAuthorized && meta.resource_type && meta.resource_id) {
+        const resId = parseInt(meta.resource_id, 10);
+        if (!isNaN(resId)) {
+          if (meta.resource_type === 'patient_document') {
+            isAuthorized = resId === req.user.patientProfileId;
+          } else if (meta.resource_type === 'invoice') {
+            const result = await db.query('SELECT patient_id AS "patientId" FROM invoices WHERE id = $1', [resId]);
+            isAuthorized = result.rows[0]?.patientId === req.user.patientProfileId;
+          } else if (meta.resource_type === 'prescription') {
+            const result = await db.query('SELECT patient_id AS "patientId" FROM prescriptions WHERE id = $1', [resId]);
+            isAuthorized = result.rows[0]?.patientId === req.user.patientProfileId;
+          } else if (meta.resource_type === 'lab_report') {
+            const result = await db.query('SELECT patient_id AS "patientId" FROM lab_reports WHERE id = $1', [resId]);
+            isAuthorized = result.rows[0]?.patientId === req.user.patientProfileId;
+          } else if (meta.resource_type === 'profile_image') {
+            isAuthorized = resId === req.user.id;
+          }
+        }
+      }
+
+      if (!isAuthorized) {
+        throw new AppError(403, 'Forbidden: You do not have permission to access this file');
+      }
+    }
+
     const rawExpiry = parseInt(req.query.expiry || '3600', 10);
     const expiry = Math.min(Math.max(rawExpiry, 60), 86400); // clamp 1 min – 24 hrs
 
     const url = await minioService.getPresignedUrl(meta.bucket_name, meta.object_key, expiry);
+
+    await auditService.recordAuditEvent({
+      user: req.user,
+      action: 'storage.file.download_request',
+      entityType: 'file_metadata',
+      entityId: meta.id,
+      metadata: {
+        fileName: meta.original_name,
+        bucketName: meta.bucket_name,
+        objectKey: meta.object_key,
+        expiry,
+      },
+      context: req.auditContext,
+    });
+
     res.json({ success: true, url, expiresIn: expiry });
   } catch (err) {
     next(err);
@@ -112,9 +169,6 @@ async function getDownloadUrl(req, res, next) {
 
 /**
  * GET /api/v1/storage/files
- * List file metadata for the caller's hospital.
- *
- * Query params: resourceType, resourceId
  */
 async function listFiles(req, res, next) {
   try {
@@ -132,8 +186,6 @@ async function listFiles(req, res, next) {
 
 /**
  * DELETE /api/v1/storage/files/:id
- * Deletes the object from MinIO and removes the metadata row.
- * Admin-only; validates hospital ownership.
  */
 async function deleteFile(req, res, next) {
   try {
@@ -146,6 +198,20 @@ async function deleteFile(req, res, next) {
 
     await minioService.deleteObject(meta.bucket_name, meta.object_key);
     await fileMetadataRepo.deleteFileMetadata(req.params.id);
+
+    await auditService.recordAuditEvent({
+      user: req.user,
+      action: 'storage.file.delete',
+      entityType: 'file_metadata',
+      entityId: meta.id,
+      metadata: {
+        fileName: meta.original_name,
+        bucketName: meta.bucket_name,
+        objectKey: meta.object_key,
+      },
+      context: req.auditContext,
+    });
+
     res.json({ success: true, message: 'File deleted' });
   } catch (err) {
     next(err);

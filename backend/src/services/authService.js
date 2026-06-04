@@ -84,12 +84,42 @@ async function login(email, password, { hospitalCode, auditContext } = {}) {
   const hospital = await hospitalService.resolveHospital(hospitalCode);
   const user = await authRepository.findUserByEmail(email, hospital.id);
   if (!user) {
+    await auditService.recordAuditEvent({
+      hospitalId: hospital.id,
+      action: "auth.login.failure",
+      entityType: "user",
+      entityId: null,
+      metadata: { email, reason: "invalid_email" },
+      context: auditContext,
+    });
     throw new AppError(401, "Invalid credentials");
   }
 
   const matches = await bcrypt.compare(password, user.passwordHash);
   if (!matches) {
+    await auditService.recordAuditEvent({
+      user,
+      hospitalId: hospital.id,
+      action: "auth.login.failure",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { email, reason: "invalid_password" },
+      context: auditContext,
+    });
     throw new AppError(401, "Invalid credentials");
+  }
+
+  if (user.status !== "active") {
+    await auditService.recordAuditEvent({
+      user,
+      hospitalId: hospital.id,
+      action: "auth.login.failure",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { email, reason: "account_inactive" },
+      context: auditContext,
+    });
+    throw new AppError(403, "Account is disabled or inactive");
   }
 
   const accessToken = signAccessToken({
