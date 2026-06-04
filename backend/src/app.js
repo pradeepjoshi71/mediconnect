@@ -145,6 +145,7 @@ app.use("/api/v1/documents", documentRoutes);
 // Phase 3 API Mounts
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/v1/invoices", invoiceRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

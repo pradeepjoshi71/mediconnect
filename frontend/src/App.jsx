@@ -117,9 +117,17 @@ export default function App() {
             <Route path="/patients" element={<Patients />} />
             <Route path="/doctors-list" element={<Doctors />} />
             <Route
-              path="/billing"
+              path="/admin/billing"
               element={
-                <RoleRoute allowedRoles={["patient", "admin", "receptionist"]}>
+                <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"]}>
+                  <BillingPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/patient/billing"
+              element={
+                <RoleRoute allowedRoles={["patient"]}>
                   <BillingPage />
                 </RoleRoute>
               }

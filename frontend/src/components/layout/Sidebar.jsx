@@ -24,11 +24,13 @@ function buildNavItems(role) {
     { to: "/records", label: "Medical records", icon: FileText },
   ];
 
+  const isBillingStaffOrAdmin = ["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"].includes(role);
+
   if (role === "patient") {
     return [
       ...shared,
       { to: "/doctors", label: "Find doctors", icon: Stethoscope },
-      { to: "/billing", label: "Billing", icon: CreditCard },
+      { to: "/patient/billing", label: "Billing", icon: CreditCard },
     ];
   }
 
@@ -43,7 +45,7 @@ function buildNavItems(role) {
     ...shared,
     { to: isAdmin ? "/admin/patients" : "/patients", label: "Patients", icon: UsersRound },
     { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
-    { to: "/billing", label: "Billing", icon: CreditCard },
+    { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard },
   ];
 }
 
