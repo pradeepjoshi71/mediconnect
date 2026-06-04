@@ -21,8 +21,9 @@ import { EmptyState } from "../components/ui/EmptyState";
 import { Input } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { formatDate, formatDateTime, statusTone } from "../utils/formatters";
+import LabInvestigationsTab from "../components/LabInvestigationsTab";
 
-const TABS = ["records", "diagnoses", "allergies", "files"];
+const TABS = ["records", "diagnoses", "allergies", "files", "labs"];
 
 const SEVERITY_TONE = {
   mild: "teal",
@@ -574,6 +575,13 @@ export default function MedicalRecordsPage() {
                 </Card>
               )}
             </div>
+          )}
+
+          {tab === "labs" && (
+            <LabInvestigationsTab
+              patientId={patientId}
+              isDoctorOrAdmin={isClinicianOrAdmin}
+            />
           )}
         </div>
       ) : (

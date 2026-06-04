@@ -18,6 +18,9 @@ import AppointmentsPage from "./pages/AppointmentsPage";
 import MedicalRecordsPage from "./pages/MedicalRecordsPage";
 import BillingPage from "./pages/BillingPage";
 import Patients from "./pages/Patients";
+import LabDashboard from "./pages/LabDashboard";
+import PatientReports from "./pages/PatientReports";
+import AdminLab from "./pages/AdminLab";
 import { refreshSession } from "./services/authService";
 import { clearSession, hasSession } from "./services/session";
 import { applyTheme, getTheme } from "./utils/theme";
@@ -129,6 +132,30 @@ export default function App() {
               element={
                 <RoleRoute allowedRoles={["patient"]}>
                   <BillingPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/lab/dashboard"
+              element={
+                <RoleRoute allowedRoles={["lab_technician", "super_admin", "hospital_admin", "admin"]}>
+                  <LabDashboard />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/patient/reports"
+              element={
+                <RoleRoute allowedRoles={["patient"]}>
+                  <PatientReports />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/admin/lab"
+              element={
+                <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin"]}>
+                  <AdminLab />
                 </RoleRoute>
               }
             />

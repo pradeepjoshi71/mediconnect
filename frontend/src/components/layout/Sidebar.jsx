@@ -7,6 +7,7 @@ import {
   LogOut,
   Stethoscope,
   UsersRound,
+  Beaker,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../services/authService";
@@ -18,6 +19,13 @@ const navBase =
 
 function buildNavItems(role) {
   const isAdmin = ["super_admin", "hospital_admin", "admin"].includes(role);
+  
+  if (role === "lab_technician") {
+    return [
+      { to: "/lab/dashboard", label: "Lab Dashboard", icon: Beaker }
+    ];
+  }
+
   const shared = [
     { to: isAdmin ? "/admin/dashboard" : "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/appointments", label: "Appointments", icon: CalendarDays },
@@ -30,6 +38,7 @@ function buildNavItems(role) {
     return [
       ...shared,
       { to: "/doctors", label: "Find doctors", icon: Stethoscope },
+      { to: "/patient/reports", label: "Lab Reports", icon: Beaker },
       { to: "/patient/billing", label: "Billing", icon: CreditCard },
     ];
   }
@@ -46,6 +55,7 @@ function buildNavItems(role) {
     { to: isAdmin ? "/admin/patients" : "/patients", label: "Patients", icon: UsersRound },
     { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
     { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard },
+    ...(isAdmin ? [{ to: "/admin/lab", label: "Lab Management", icon: Beaker }] : []),
   ];
 }
 

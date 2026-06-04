@@ -43,6 +43,7 @@ import { Badge } from "../components/ui/Badge";
 import { Modal } from "../components/ui/Modal";
 import { PaginatedTable } from "../components/ui/PaginatedTable";
 import { EmptyState } from "../components/ui/EmptyState";
+import LabInvestigationsTab from "../components/LabInvestigationsTab";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { formatDate, formatDateTime, statusTone } from "../utils/formatters";
 
@@ -429,7 +430,8 @@ export default function Patients() {
             { id: "overview", label: "Overview & Timeline" },
             { id: "emr", label: "Medical History (EMR)" },
             { id: "allergies", label: "Allergies & Medications" },
-            { id: "documents", label: "Medical Documents" }
+            { id: "documents", label: "Medical Documents" },
+            { id: "labs", label: "Lab Investigations" }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -829,6 +831,13 @@ export default function Patients() {
               </Card>
             )}
           </div>
+        )}
+
+        {profileTab === "labs" && (
+          <LabInvestigationsTab
+            patientId={viewingPatientId}
+            isDoctorOrAdmin={isDoctorOrAdmin}
+          />
         )}
 
         {/* Medical Record Modal */}

@@ -12,6 +12,7 @@ const ROLE_DASHBOARD = {
   doctor: "/dashboard",
   receptionist: "/dashboard",
   patient: "/dashboard",
+  lab_technician: "/lab/dashboard",
 };
 
 function getDashboardForRole(role) {
