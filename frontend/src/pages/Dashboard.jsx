@@ -12,5 +12,6 @@ export default function DashboardPage() {
   }
   if (user?.role === "doctor") return <DoctorDashboard />;
   if (user?.role === "receptionist") return <ReceptionDashboard />;
+  if (user?.role === "pharmacist") return <Navigate to="/pharmacy/dashboard" replace />;
   return <PatientDashboard />;
 }

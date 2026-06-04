@@ -8,6 +8,7 @@ import {
   Stethoscope,
   UsersRound,
   Beaker,
+  Pill,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../services/authService";
@@ -26,6 +27,12 @@ function buildNavItems(role) {
     ];
   }
 
+  if (role === "pharmacist") {
+    return [
+      { to: "/pharmacy/dashboard", label: "Pharmacy Dashboard", icon: Pill }
+    ];
+  }
+
   const shared = [
     { to: isAdmin ? "/admin/dashboard" : "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/appointments", label: "Appointments", icon: CalendarDays },
@@ -39,6 +46,7 @@ function buildNavItems(role) {
       ...shared,
       { to: "/doctors", label: "Find doctors", icon: Stethoscope },
       { to: "/patient/reports", label: "Lab Reports", icon: Beaker },
+      { to: "/patient/pharmacy", label: "Medications", icon: Pill },
       { to: "/patient/billing", label: "Billing", icon: CreditCard },
     ];
   }
@@ -56,6 +64,7 @@ function buildNavItems(role) {
     { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
     { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard },
     ...(isAdmin ? [{ to: "/admin/lab", label: "Lab Management", icon: Beaker }] : []),
+    ...(isAdmin ? [{ to: "/admin/pharmacy", label: "Pharmacy Management", icon: Pill }] : []),
   ];
 }
 

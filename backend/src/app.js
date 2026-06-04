@@ -25,6 +25,8 @@ const telemedicineRoutes = require("./routes/telemedicineRoutes");
 const intelligenceRoutes = require("./routes/intelligenceRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const { labTestsRouter, labOrdersRouter, labReportsRouter } = require("./routes/labRoutes");
+const medicineRoutes = require("./routes/medicineRoutes");
+const pharmacyRoutes = require("./routes/pharmacyRoutes");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -152,6 +154,10 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/lab-tests", labTestsRouter);
 app.use("/api/lab-orders", labOrdersRouter);
 app.use("/api/lab-reports", labReportsRouter);
+
+// Phase 5 API Mounts
+app.use("/api/medicines", medicineRoutes);
+app.use("/api/pharmacy", pharmacyRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));
