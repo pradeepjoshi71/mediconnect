@@ -72,7 +72,12 @@ const logout = asyncHandler(async (req, res) => {
 
 const me = asyncHandler(async (req, res) => {
   const user = await authService.getCurrentUser(req.user.id);
-  res.json({ user });
+  res.json({
+    id: user.id,
+    name: user.fullName,
+    email: user.email,
+    role: user.role
+  });
 });
 
 module.exports = {

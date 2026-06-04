@@ -18,6 +18,9 @@ DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS appointments CASCADE;
 DROP TABLE IF EXISTS doctors CASCADE;
 DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS user_roles CASCADE;
+DROP TABLE IF EXISTS role_permissions CASCADE;
+DROP TABLE IF EXISTS permissions CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS hospitals CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
@@ -62,6 +65,26 @@ CREATE TABLE users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE permissions (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE role_permissions (
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE user_roles (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, role_id)
+);
+
 CREATE UNIQUE INDEX idx_users_hospital_email ON users (hospital_id, lower(email));
 CREATE INDEX idx_users_hospital_role ON users (hospital_id, role_id);
 
@@ -94,6 +117,7 @@ CREATE TABLE doctors (
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   employee_code VARCHAR(40) NOT NULL,
   specialization VARCHAR(120) NOT NULL,
+  qualification VARCHAR(255) NOT NULL DEFAULT 'MD',
   department VARCHAR(120) NOT NULL,
   license_number VARCHAR(80) NOT NULL,
   experience_years INTEGER NOT NULL DEFAULT 0 CHECK (experience_years >= 0),
@@ -414,7 +438,20 @@ VALUES
   ('admin', 'Administrator', 'Hospital operations and analytics access'),
   ('doctor', 'Doctor', 'Clinical care and consultation workflows'),
   ('patient', 'Patient', 'Patient portal access'),
-  ('receptionist', 'Receptionist', 'Front desk scheduling and queue operations');
+  ('receptionist', 'Receptionist', 'Front desk scheduling and queue operations'),
+  ('super_admin', 'Super Admin', 'Full system-wide administrative access'),
+  ('hospital_admin', 'Hospital Admin', 'Hospital-level administrative access');
+
+INSERT INTO permissions (code, name, description)
+VALUES
+  ('manage_doctors', 'Manage Doctors', 'Ability to create, edit, and toggle status of doctors'),
+  ('view_dashboard', 'View Dashboard', 'Ability to view the hospital administration dashboard');
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r, permissions p
+WHERE r.code IN ('super_admin', 'hospital_admin', 'admin')
+  AND p.code IN ('manage_doctors', 'view_dashboard');
 
 INSERT INTO hospitals (code, slug, name, timezone, country_code, support_phone, billing_email, settings)
 VALUES
@@ -467,6 +504,9 @@ FROM (
 ) AS seed(hospital_code, role_code, full_name, email, password, phone)
 JOIN hospitals h ON h.code = seed.hospital_code
 JOIN roles r ON r.code = seed.role_code;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT id, role_id FROM users;
 
 INSERT INTO patients (
   hospital_id,

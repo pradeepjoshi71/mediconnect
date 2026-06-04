@@ -50,3 +50,10 @@ export async function updateDoctorStatus(id, status) {
   const response = await api.patch(`/doctors/${id}/status`, { status });
   return response.data;
 }
+
+export async function updateDoctorAvailability(id, availabilityStatus) {
+  const response = await api.patch(`/doctors/${id}/availability`, {
+    availability_status: availabilityStatus,
+  });
+  return response.data;
+}

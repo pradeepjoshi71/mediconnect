@@ -17,8 +17,9 @@ const navBase =
   "group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition-all";
 
 function buildNavItems(role) {
+  const isAdmin = ["super_admin", "hospital_admin", "admin"].includes(role);
   const shared = [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: isAdmin ? "/admin/dashboard" : "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/appointments", label: "Appointments", icon: CalendarDays },
     { to: "/records", label: "Medical records", icon: FileText },
   ];
@@ -41,7 +42,7 @@ function buildNavItems(role) {
   return [
     ...shared,
     { to: "/patients", label: "Patients", icon: UsersRound },
-    { to: "/doctors", label: "Doctors", icon: Stethoscope },
+    { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
     { to: "/billing", label: "Billing", icon: CreditCard },
   ];
 }

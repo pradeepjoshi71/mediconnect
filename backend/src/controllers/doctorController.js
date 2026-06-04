@@ -43,6 +43,7 @@ const createDoctorSchema = z.object({
   department: z.string().trim().min(1).max(120).optional().default("General"),
   biography: z.string().optional(),
   status: z.enum(["active", "inactive"]).optional().default("active"),
+  availability_status: z.enum(["AVAILABLE", "UNAVAILABLE"]).optional(),
   password: z.string().min(8).optional(),
 });
 
@@ -58,6 +59,7 @@ const updateDoctorSchema = z.object({
   department: z.string().trim().min(1).max(120).optional().default("General"),
   biography: z.string().optional(),
   status: z.enum(["active", "inactive"]).optional().default("active"),
+  availability_status: z.enum(["AVAILABLE", "UNAVAILABLE"]).optional(),
 });
 
 const updateStatusSchema = z.object({
@@ -81,12 +83,18 @@ const getDoctorById = asyncHandler(async (req, res) => {
 });
 
 const createDoctor = asyncHandler(async (req, res) => {
+  if (req.body.availability_status) {
+    req.body.status = req.body.availability_status === "AVAILABLE" ? "active" : "inactive";
+  }
   const payload = createDoctorSchema.parse(req.body);
   const doctor = await doctorService.createDoctor(req.user, payload, req.auditContext);
   res.status(201).json(doctor);
 });
 
 const updateDoctor = asyncHandler(async (req, res) => {
+  if (req.body.availability_status) {
+    req.body.status = req.body.availability_status === "AVAILABLE" ? "active" : "inactive";
+  }
   const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
   const payload = updateDoctorSchema.parse(req.body);
   const doctor = await doctorService.updateDoctor(req.user, params.id, payload, req.auditContext);
@@ -127,6 +135,21 @@ const addTimeOff = asyncHandler(async (req, res) => {
   res.status(201).json(result);
 });
 
+const updateDoctorAvailability = asyncHandler(async (req, res) => {
+  const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
+  const updateAvailabilitySchema = z.object({
+    availability_status: z.enum(["AVAILABLE", "UNAVAILABLE"]),
+  });
+  const payload = updateAvailabilitySchema.parse(req.body);
+  const status = payload.availability_status === "AVAILABLE" ? "active" : "inactive";
+  
+  await doctorService.updateDoctorStatus(req.user, params.id, status, req.auditContext);
+  res.json({
+    id: params.id,
+    availability_status: payload.availability_status,
+  });
+});
+
 module.exports = {
   listDoctors,
   getAvailability,
@@ -138,4 +161,5 @@ module.exports = {
   createDoctor,
   updateDoctor,
   updateDoctorStatus,
+  updateDoctorAvailability,
 };

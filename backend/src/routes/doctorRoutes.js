@@ -9,26 +9,33 @@ const router = express.Router();
 // Public/authenticated doctors list
 router.get("/", authMiddleware, doctorController.listDoctors);
 
-// Manage doctors (Admin/Super Admin only via manage_doctors permission)
+// Manage doctors (Super Admin and Hospital Admin only)
 router.post(
   "/",
   authMiddleware,
-  permissionMiddleware("manage_doctors"),
+  roleMiddleware("super_admin", "hospital_admin"),
   doctorController.createDoctor
 );
 
 router.put(
   "/:id",
   authMiddleware,
-  permissionMiddleware("manage_doctors"),
+  roleMiddleware("super_admin", "hospital_admin"),
   doctorController.updateDoctor
 );
 
 router.patch(
   "/:id/status",
   authMiddleware,
-  permissionMiddleware("manage_doctors"),
+  roleMiddleware("super_admin", "hospital_admin"),
   doctorController.updateDoctorStatus
+);
+
+router.patch(
+  "/:id/availability",
+  authMiddleware,
+  roleMiddleware("super_admin", "hospital_admin"),
+  doctorController.updateDoctorAvailability
 );
 
 // Doctor availability rules (own)

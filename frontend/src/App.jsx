@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import RoleRoute from "./components/RoleRoute";
 import AppShell from "./layouts/AppShell";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import AdminLogin from "./pages/AdminLogin";
 import DashboardPage from "./pages/Dashboard";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminDoctors from "./pages/AdminDoctors";
 import DoctorsPage from "./pages/DoctorsPage";
 import Doctors from "./pages/Doctors";
 import AppointmentsPage from "./pages/AppointmentsPage";
@@ -86,6 +90,14 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+
+        <Route element={<ProtectedAdminRoute />}>
+          <Route element={<AppShell />}>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/doctors" element={<AdminDoctors />} />
+          </Route>
+        </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>

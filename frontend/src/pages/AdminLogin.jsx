@@ -1,28 +1,17 @@
-import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { login } from "../services/authService";
+import { login, logout } from "../services/authService";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 
-const ROLE_DASHBOARD = {
-  admin: "/dashboard",
-  doctor: "/dashboard",
-  receptionist: "/dashboard",
-  patient: "/dashboard",
-};
-
-function getDashboardForRole(role) {
-  return ROLE_DASHBOARD[role] || "/dashboard";
-}
-
-export default function Login() {
+export default function AdminLogin() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ hospitalCode: "MCH-BLR", email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
 
   const canSubmit = useMemo(
     () => form.email.trim().length > 3 && form.password.trim().length > 0,
@@ -35,9 +24,24 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      const data = await login(form);
-      toast.success("Signed in successfully");
-      navigate(getDashboardForRole(data.user?.role));
+      const data = await login({
+        email: form.email,
+        password: form.password,
+        hospitalCode: "MCH-BLR", // Reuse default hospital code
+      });
+
+      const isAuthorized =
+        data.user?.role === "admin" ||
+        data.user?.role === "hospital_admin" ||
+        data.user?.role === "super_admin";
+
+      if (isAuthorized) {
+        toast.success("Admin signed in successfully");
+        navigate("/admin/dashboard");
+      } else {
+        await logout();
+        toast.error("Access denied. Only administrators can sign in here.");
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to sign in");
     } finally {
@@ -54,24 +58,24 @@ export default function Login() {
             <div className="inline-flex items-center gap-3 rounded-full border border-white/70 bg-white/80 px-4 py-2 shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80">
               <ShieldCheck className="h-4 w-4 text-brand-600 dark:text-brand-300" />
               <span className="text-xs font-bold uppercase tracking-[0.22em] text-slate-600 dark:text-slate-300">
-                Secure hospital command center
+                Secure administrator portal
               </span>
             </div>
 
             <h1 className="mt-8 text-balance text-5xl font-black tracking-tight text-slate-950 dark:text-white">
-              Enterprise healthcare workflows for clinics, hospitals, and care teams.
+              Hospital Command & Control Center.
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-slate-600 dark:text-slate-300">
-              Manage appointments, clinical documentation, billing, notifications, and doctor
-              operations from one production-ready hospital management platform.
+              Access the administrative core to manage hospital resources, doctors, appointments,
+              patient billing, and system operations.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             {[
-              ["EHR ready", "Visit timelines, notes, prescriptions, and reports."],
-              ["Doctor workflow", "Queue handling, availability, and consultation capture."],
-              ["Operations", "Billing, waitlists, analytics, and real-time updates."],
+              ["System Control", "Monitor active services, hospital tenant settings, and audits."],
+              ["Clinician Management", "Provision and manage doctor profiles and shifts."],
+              ["Enterprise Ops", "Configure billing, appointments, and hospital networks."],
             ].map(([title, description]) => (
               <Card key={title} className="p-5">
                 <div className="text-sm font-semibold text-slate-900 dark:text-white">{title}</div>
@@ -86,38 +90,16 @@ export default function Login() {
         <section className="flex items-center justify-center p-6 sm:p-10">
           <Card className="w-full max-w-xl p-8">
             <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
-              Sign in
+              Administrator sign in
             </div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
-              Welcome back to MediConnect
+              Welcome back, Admin
             </h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              Demo accounts from the seeded database include:
-              <br />
-              `admin@mediconnect.local`, `doctor@mediconnect.local`, `patient@mediconnect.local`,
-              and `reception@mediconnect.local`
-              <br />
-              Password: `Password@123`
+              Log in with your administrator credentials to access the command center dashboard.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-              <label className="block">
-                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  Hospital code
-                </div>
-                <div className="relative">
-                  <Building2 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    value={form.hospitalCode}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, hospitalCode: event.target.value }))
-                    }
-                    className="pl-11"
-                    placeholder="MCH-BLR"
-                  />
-                </div>
-              </label>
-
               <label className="block">
                 <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Email
@@ -131,7 +113,7 @@ export default function Login() {
                       setForm((current) => ({ ...current, email: event.target.value }))
                     }
                     className="pl-11"
-                    placeholder="name@hospital.com"
+                    placeholder="admin@hospital.com"
                   />
                 </div>
               </label>
@@ -166,21 +148,13 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 flex flex-col items-center gap-4 text-center text-sm text-slate-600 dark:text-slate-400">
-              <div>
-                Need a patient portal account?{" "}
-                <Link
-                  to="/register"
-                  className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-                >
-                  Register here
-                </Link>
-              </div>
-              <div className="w-full border-t border-slate-100 dark:border-slate-800/80 my-1" />
-              <Link to="/admin/login" className="w-full">
-                <Button type="button" variant="outline" className="w-full">
-                  Admin Login
-                </Button>
+            <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+              Not an administrator?{" "}
+              <Link
+                to="/login"
+                className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+              >
+                Go to Patient Portal
               </Link>
             </div>
           </Card>

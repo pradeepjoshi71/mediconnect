@@ -64,6 +64,7 @@ async function listDoctors({
         d.employee_code AS "employee_id",
         d.employee_code AS "employee_code",
         u.status,
+        CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
         d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
@@ -102,6 +103,7 @@ async function findDoctorById(id) {
         (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
         d.biography,
         u.status,
+        CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
         d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
@@ -139,6 +141,7 @@ async function findDoctorByIdWithinHospital(id, hospitalId) {
         (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
         d.biography,
         u.status,
+        CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
         d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
@@ -168,6 +171,7 @@ async function findDoctorByUserId(userId, hospitalId) {
         d.consultation_fee_cents AS "consultation_fee_cents",
         (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
         u.status,
+        CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
         d.created_at
       FROM doctors d
       JOIN users u ON u.id = d.user_id
