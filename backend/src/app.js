@@ -27,6 +27,9 @@ const invoiceRoutes = require("./routes/invoiceRoutes");
 const { labTestsRouter, labOrdersRouter, labReportsRouter } = require("./routes/labRoutes");
 const medicineRoutes = require("./routes/medicineRoutes");
 const pharmacyRoutes = require("./routes/pharmacyRoutes");
+const hospitalRoutes = require("./routes/hospitalRoutes");
+const storageRoutes = require("./routes/storageRoutes");
+const pushRoutes = require("./routes/pushRoutes");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -158,6 +161,14 @@ app.use("/api/lab-reports", labReportsRouter);
 // Phase 5 API Mounts
 app.use("/api/medicines", medicineRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
+
+// Phase 6 API Mounts
+app.use("/api/v1/hospitals", hospitalRoutes);
+app.use("/api/v1/storage", storageRoutes);
+app.use("/api/v1/push", pushRoutes);
+app.use("/api/hospitals", hospitalRoutes);
+app.use("/api/storage", storageRoutes);
+app.use("/api/push", pushRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

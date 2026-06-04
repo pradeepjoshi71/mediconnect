@@ -24,6 +24,7 @@ import AdminLab from "./pages/AdminLab";
 import PharmacyDashboard from "./pages/PharmacyDashboard";
 import AdminPharmacy from "./pages/AdminPharmacy";
 import PatientPharmacy from "./pages/PatientPharmacy";
+import AuditLogs from "./pages/AuditLogs";
 import { refreshSession } from "./services/authService";
 import { clearSession, hasSession } from "./services/session";
 import { applyTheme, getTheme } from "./utils/theme";
@@ -183,6 +184,14 @@ export default function App() {
               element={
                 <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin"]}>
                   <AdminPharmacy />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/admin/audit-logs"
+              element={
+                <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin"]}>
+                  <AuditLogs />
                 </RoleRoute>
               }
             />

@@ -9,6 +9,7 @@ import {
   UsersRound,
   Beaker,
   Pill,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { logout } from "../../services/authService";
@@ -65,6 +66,7 @@ function buildNavItems(role) {
     { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard },
     ...(isAdmin ? [{ to: "/admin/lab", label: "Lab Management", icon: Beaker }] : []),
     ...(isAdmin ? [{ to: "/admin/pharmacy", label: "Pharmacy Management", icon: Pill }] : []),
+    ...(isAdmin ? [{ to: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck }] : []),
   ];
 }
 

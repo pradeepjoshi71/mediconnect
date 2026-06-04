@@ -37,6 +37,27 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    container_name: mediconnect-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - mediconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -48,6 +69,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     environment:
       PORT: ${BACKEND_PORT}
@@ -74,6 +97,13 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       DEFAULT_HOSPITAL_CODE: ${DEFAULT_HOSPITAL_CODE}
       LOG_LEVEL: ${LOG_LEVEL}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
     ports:
       - "5000:5000"
     volumes:
@@ -124,6 +154,7 @@ volumes:
   postgres_data:
   uploads_data:
   redis_data:
+  minio_data:
 
 networks:
   mediconnect-network:
