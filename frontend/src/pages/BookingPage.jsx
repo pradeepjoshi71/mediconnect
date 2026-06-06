@@ -96,10 +96,11 @@ export default function BookingPage() {
       setSlotIso("");
       setReason("");
       // optional: immediately create a placeholder checkout
-      const checkout = await createCheckout({
-        appointmentId: booked.appointment.id,
-        provider: paymentProvider,
-      });
+      if (booked.payment && (booked.payment.status === "paid" || Number(booked.payment.amount) === 0)) {
+        toast.success("Appointment booked successfully (Free consultation).");
+        return;
+      }
+      const checkout = await createCheckout(booked.payment.id, paymentProvider);
       setPayment(checkout.payment);
       setCheckoutUrl(checkout.checkoutUrl);
     } catch (e) {

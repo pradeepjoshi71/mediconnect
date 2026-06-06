@@ -13,6 +13,10 @@ const PAYMENT_SELECT = `
     pay.amount,
     (pay.amount * 100)::integer AS "amountCents",
     pay.status,
+    pay.source,
+    pay.reference_number AS "referenceNumber",
+    pay.received_by AS "receivedBy",
+    pay.notes,
     pay.paid_at AS "paidAt",
     pay.razorpay_order_id AS "razorpayOrderId",
     pay.razorpay_payment_id AS "razorpayPaymentId",
@@ -24,7 +28,8 @@ const PAYMENT_SELECT = `
     pu.full_name AS "patientName",
     p.medical_record_number AS "patientMRN",
     a.doctor_id AS "doctorId",
-    du.full_name AS "doctorName"
+    du.full_name AS "doctorName",
+    rb.full_name AS "receivedByName"
   FROM payments pay
   JOIN invoices inv ON inv.id = pay.invoice_id
   JOIN patients p ON p.id = pay.patient_id
@@ -32,6 +37,7 @@ const PAYMENT_SELECT = `
   LEFT JOIN appointments a ON a.id = inv.appointment_id
   LEFT JOIN doctors d ON d.id = a.doctor_id
   LEFT JOIN users du ON du.id = d.user_id
+  LEFT JOIN users rb ON rb.id = pay.received_by
 `;
 
 async function listPayments({ hospitalId, role, patientId }) {
@@ -82,6 +88,30 @@ async function findPaymentByOrderId(orderId, hospitalId) {
   return result.rows[0] || null;
 }
 
+async function findPaymentsByInvoiceId(invoiceId, hospitalId) {
+  const result = await db.query(
+    `
+      ${PAYMENT_SELECT}
+      WHERE pay.invoice_id = $1 AND pay.hospital_id = $2
+      ORDER BY pay.created_at DESC
+    `,
+    [invoiceId, hospitalId]
+  );
+  return result.rows;
+}
+
+async function computeInvoicePaidAmount(invoiceId, hospitalId) {
+  const result = await db.query(
+    `
+      SELECT COALESCE(SUM(amount), 0) AS paid_amount
+      FROM payments
+      WHERE invoice_id = $1 AND hospital_id = $2 AND status = 'paid'
+    `,
+    [invoiceId, hospitalId]
+  );
+  return Number(result.rows[0].paid_amount);
+}
+
 async function createPayment({
   hospitalId,
   invoiceId,
@@ -93,7 +123,11 @@ async function createPayment({
   status,
   razorpayOrderId,
   razorpayPaymentId,
-  razorpaySignature
+  razorpaySignature,
+  source,
+  referenceNumber,
+  receivedBy,
+  notes
 }) {
   const result = await db.query(
     `
@@ -109,9 +143,14 @@ async function createPayment({
         razorpay_order_id,
         razorpay_payment_id,
         razorpay_signature,
+        source,
+        reference_number,
+        received_by,
+        notes,
         paid_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CASE WHEN $8 = 'paid' THEN now() ELSE null END)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        CASE WHEN $8 = 'paid' THEN now() ELSE null END)
       RETURNING id
     `,
     [
@@ -125,7 +164,11 @@ async function createPayment({
       status || "pending",
       razorpayOrderId || null,
       razorpayPaymentId || null,
-      razorpaySignature || null
+      razorpaySignature || null,
+      source || "online",
+      referenceNumber || null,
+      receivedBy || null,
+      notes || null
     ]
   );
   return findPaymentById(result.rows[0].id, hospitalId);
@@ -161,6 +204,8 @@ module.exports = {
   listPayments,
   findPaymentById,
   findPaymentByOrderId,
+  findPaymentsByInvoiceId,
+  computeInvoicePaidAmount,
   createPayment,
   updatePayment,
 };

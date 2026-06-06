@@ -8,6 +8,8 @@ const listDoctorsQuery = z.object({
   minExperience: z.coerce.number().int().min(0).optional().default(0),
   minRating: z.coerce.number().min(0).max(5).optional().default(0),
   sort: z.enum(["rating", "experience", "fee"]).optional().default("rating"),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
 });
 
 const availabilityQuery = z.object({
@@ -45,6 +47,7 @@ const createDoctorSchema = z.object({
   status: z.enum(["active", "inactive"]).optional().default("active"),
   availability_status: z.enum(["AVAILABLE", "UNAVAILABLE"]).optional(),
   password: z.string().min(8).optional(),
+  license_number: z.string().trim().optional(),
 });
 
 const updateDoctorSchema = z.object({
@@ -60,6 +63,7 @@ const updateDoctorSchema = z.object({
   biography: z.string().optional(),
   status: z.enum(["active", "inactive"]).optional().default("active"),
   availability_status: z.enum(["AVAILABLE", "UNAVAILABLE"]).optional(),
+  license_number: z.string().trim().optional(),
 });
 
 const updateStatusSchema = z.object({

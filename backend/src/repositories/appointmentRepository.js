@@ -92,9 +92,9 @@ async function findAppointmentById(id, hospitalId) {
   return result.rows[0] || null;
 }
 
-async function findActiveAppointmentConflict(hospitalId, doctorId, startsAt, excludeAppointmentId = null) {
-  const params = [hospitalId, doctorId, startsAt];
-  const excludeClause = excludeAppointmentId ? `AND a.id <> $4` : "";
+async function findActiveAppointmentConflict(hospitalId, doctorId, startsAt, endsAt, excludeAppointmentId = null) {
+  const params = [hospitalId, doctorId, startsAt, endsAt];
+  const excludeClause = excludeAppointmentId ? `AND a.id <> $5` : "";
   if (excludeAppointmentId) {
     params.push(excludeAppointmentId);
   }
@@ -105,7 +105,8 @@ async function findActiveAppointmentConflict(hospitalId, doctorId, startsAt, exc
       FROM appointments a
       WHERE a.hospital_id = $1
         AND a.doctor_id = $2
-        AND a.scheduled_start = $3
+        AND a.scheduled_start < $4
+        AND a.scheduled_end > $3
         AND a.status IN ('scheduled', 'confirmed', 'checked_in', 'in_consultation')
         ${excludeClause}
       LIMIT 1

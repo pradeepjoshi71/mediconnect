@@ -69,17 +69,15 @@ const logout = asyncHandler(async (req, res) => {
     user: req.user || null,
     auditContext: req.auditContext,
   });
-  res.clearCookie("refresh_token", refreshCookieOptions());
+  const { maxAge, ...clearOptions } = refreshCookieOptions();
+  res.clearCookie("refresh_token", clearOptions);
   res.status(204).send();
 });
 
 const me = asyncHandler(async (req, res) => {
   const user = await authService.getCurrentUser(req.user.id);
   res.json({
-    id: user.id,
-    name: user.fullName,
-    email: user.email,
-    role: user.role
+    user
   });
 });
 

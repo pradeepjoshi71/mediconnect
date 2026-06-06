@@ -14,7 +14,7 @@ async function authMiddleware(req, res, next) {
     const decoded = verifyAccessToken(token);
     const user = await authRepository.findUserById(Number(decoded.sub));
 
-    if (!user || Number(decoded.hospitalId) !== Number(user.hospitalId)) {
+    if (!user || Number(decoded.hospitalId) !== Number(user.hospitalId) || user.status !== "active") {
       return res.status(401).json({ message: "Unauthorized", requestId: req.requestId });
     }
 

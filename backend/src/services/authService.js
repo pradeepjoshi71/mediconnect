@@ -182,6 +182,14 @@ async function refresh(refreshToken) {
     throw new AppError(404, "User not found");
   }
 
+  if (Number(decoded.hospitalId) !== Number(user.hospitalId)) {
+    throw new AppError(401, "Unauthorized");
+  }
+
+  if (user.status !== "active") {
+    throw new AppError(403, "Account is disabled or inactive");
+  }
+
   return {
     accessToken: signAccessToken({
       userId: user.id,
@@ -196,15 +204,31 @@ async function refresh(refreshToken) {
 
 async function logout(refreshToken, { user, auditContext } = {}) {
   if (!refreshToken) return;
+
+  let auditUser = user;
+  if (!auditUser) {
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      if (decoded && decoded.sub) {
+        const dbUser = await authRepository.findUserById(Number(decoded.sub));
+        if (dbUser) {
+          auditUser = dbUser;
+        }
+      }
+    } catch (error) {
+      // Ignore token verification errors to ensure logout completes
+    }
+  }
+
   await authRepository.revokeRefreshTokenByHash(hashRefreshToken(refreshToken));
 
-  if (user?.id && user?.hospitalId) {
+  if (auditUser?.id && auditUser?.hospitalId) {
     await auditService.recordAuditEvent({
-      user,
+      user: auditUser,
       action: "auth.logout",
       entityType: "user",
-      entityId: user.id,
-      metadata: { email: user.email },
+      entityId: auditUser.id,
+      metadata: { email: auditUser.email },
       context: auditContext,
     });
   }

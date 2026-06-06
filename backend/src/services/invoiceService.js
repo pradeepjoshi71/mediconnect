@@ -13,22 +13,40 @@ async function createInvoice(user, payload, context) {
   }
 
   const invoiceNumber = nextInvoiceNumber();
-  const subtotal = Number(payload.subtotal || 0);
-  const taxAmount = Number(payload.taxAmount || 0);
-  const discountAmount = Number(payload.discountAmount || 0);
-  const totalAmount = Number((subtotal + taxAmount - discountAmount).toFixed(2));
+
+  // Recalculate each item's total price and calculate subtotal
+  const items = payload.items || [];
+  let calculatedSubtotal = 0;
+  for (const item of items) {
+    item.totalPrice = Number((Number(item.quantity || 0) * Number(item.unitPrice || 0)).toFixed(2));
+    calculatedSubtotal += item.totalPrice;
+  }
+  calculatedSubtotal = Number(calculatedSubtotal.toFixed(2));
+
+  // Recalculate taxAmount as flat 5% of subtotal
+  const calculatedTaxAmount = Number((calculatedSubtotal * 0.05).toFixed(2));
+
+  // Validate discountAmount to ensure it is positive and <= subtotal + tax
+  let discountAmount = Number(payload.discountAmount || 0);
+  if (discountAmount < 0) discountAmount = 0;
+  if (discountAmount > calculatedSubtotal + calculatedTaxAmount) {
+    discountAmount = calculatedSubtotal + calculatedTaxAmount;
+  }
+  discountAmount = Number(discountAmount.toFixed(2));
+
+  const totalAmount = Number((calculatedSubtotal + calculatedTaxAmount - discountAmount).toFixed(2));
 
   const data = {
     invoiceNumber,
     patientId: payload.patientId,
     appointmentId: payload.appointmentId || null,
     createdBy: user.id,
-    subtotal,
-    taxAmount,
+    subtotal: calculatedSubtotal,
+    taxAmount: calculatedTaxAmount,
     discountAmount,
     totalAmount,
     status: payload.status || "draft",
-    items: payload.items || []
+    items
   };
 
   const invoiceId = await invoiceRepository.createInvoice(user.hospitalId, data);
@@ -61,9 +79,28 @@ async function updateInvoice(user, id, payload, context) {
     throw new AppError(400, `Cannot modify an invoice that is already ${invoice.status}`);
   }
 
-  const subtotal = payload.subtotal !== undefined ? Number(payload.subtotal) : Number(invoice.subtotal);
-  const taxAmount = payload.taxAmount !== undefined ? Number(payload.taxAmount) : Number(invoice.taxAmount);
-  const discountAmount = payload.discountAmount !== undefined ? Number(payload.discountAmount) : Number(invoice.discountAmount);
+  // Recalculate subtotal
+  let subtotal = Number(invoice.subtotal);
+  let items = invoice.items;
+  if (payload.items !== undefined) {
+    items = payload.items;
+    let calculatedSubtotal = 0;
+    for (const item of items) {
+      item.totalPrice = Number((Number(item.quantity || 0) * Number(item.unitPrice || 0)).toFixed(2));
+      calculatedSubtotal += item.totalPrice;
+    }
+    subtotal = Number(calculatedSubtotal.toFixed(2));
+  }
+
+  const taxAmount = Number((subtotal * 0.05).toFixed(2));
+
+  let discountAmount = payload.discountAmount !== undefined ? Number(payload.discountAmount) : Number(invoice.discountAmount);
+  if (discountAmount < 0) discountAmount = 0;
+  if (discountAmount > subtotal + taxAmount) {
+    discountAmount = subtotal + taxAmount;
+  }
+  discountAmount = Number(discountAmount.toFixed(2));
+
   const totalAmount = Number((subtotal + taxAmount - discountAmount).toFixed(2));
 
   const data = {
@@ -74,7 +111,7 @@ async function updateInvoice(user, id, payload, context) {
     discountAmount,
     totalAmount,
     status: payload.status || invoice.status,
-    items: payload.items || invoice.items
+    items
   };
 
   await invoiceRepository.updateInvoice(id, user.hospitalId, data);

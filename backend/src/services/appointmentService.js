@@ -157,6 +157,7 @@ async function ensureSlotAvailable(
       hospitalId,
       doctorId,
       slotStart.toISOString(),
+      slotEnd.toISOString(),
       excludeAppointmentId
     ),
     doctorRepository.listTimeOffInRange(
@@ -208,6 +209,10 @@ async function bookAppointment(user, payload, context) {
   );
   if (!doctor) {
     throw new AppError(404, "Doctor not found");
+  }
+
+  if (doctor.status !== "active") {
+    throw new AppError(409, "Selected doctor is inactive or suspended");
   }
 
   const patient = await resolvePatientForActor(user, payload.patientId);
@@ -382,10 +387,18 @@ async function rescheduleAppointment(user, appointmentId, startsAt, context) {
     user.role === "patient" && Number(user.patientProfileId) === Number(appointment.patientId);
   const isDoctorOwner =
     user.role === "doctor" && Number(user.doctorProfileId) === Number(appointment.doctorId);
-  const isStaff = ["admin", "receptionist"].includes(user.role);
+  const isStaff = ["admin", "receptionist", "hospital_admin", "super_admin"].includes(user.role);
 
   if (!isPatientOwner && !isDoctorOwner && !isStaff) {
     throw new AppError(403, "Forbidden");
+  }
+
+  const doctor = await doctorRepository.findDoctorByIdWithinHospital(
+    appointment.doctorId,
+    user.hospitalId
+  );
+  if (!doctor || doctor.status !== "active") {
+    throw new AppError(409, "Selected doctor is inactive or suspended");
   }
 
   const { slotStart, slotEnd } = await resolveSlot(
@@ -459,7 +472,7 @@ async function updateAppointmentStatus(user, appointmentId, { status, cancellati
     user.role === "patient" && Number(user.patientProfileId) === Number(appointment.patientId);
   const isDoctorOwner =
     user.role === "doctor" && Number(user.doctorProfileId) === Number(appointment.doctorId);
-  const isStaff = ["admin", "receptionist"].includes(user.role);
+  const isStaff = ["admin", "receptionist", "hospital_admin", "super_admin"].includes(user.role);
 
   if (status === "cancelled" && !isPatientOwner && !isDoctorOwner && !isStaff) {
     throw new AppError(403, "Forbidden");

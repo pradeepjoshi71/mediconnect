@@ -65,7 +65,7 @@ export default function AdminDoctors() {
     setLoading(true);
     try {
       const data = await listDoctors({ search: searchQuery });
-      setDoctors(data);
+      setDoctors(Array.isArray(data) ? data : (data.rows || []));
     } catch {
       toast.error("Unable to load doctors list");
     } finally {
@@ -344,96 +344,93 @@ export default function AdminDoctors() {
             </div>
           </div>
 
-          <Card>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="py-8 text-center text-sm text-slate-500">Loading doctors...</div>
-              ) : doctors.length ? (
-                <PaginatedTable
-                  rows={doctors}
-                  pageSize={10}
-                  columns={[
-                    {
-                      key: "fullName",
-                      label: "Doctor Name",
-                      render: (row) => (
-                        <div className="flex items-center gap-3">
-                          <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
-                            <Stethoscope className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-white">
-                              {row.fullName || row.full_name}
-                            </div>
-                            <div className="text-xs text-slate-400">{row.employee_id}</div>
-                          </div>
+          {loading ? (
+            <div className="py-8 text-center text-sm text-slate-500">Loading doctors...</div>
+          ) : (
+            <PaginatedTable
+              rows={doctors}
+              pageSize={10}
+              columns={[
+                {
+                  key: "fullName",
+                  label: "Doctor Name",
+                  render: (row) => (
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-400">
+                        <Stethoscope className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-900 dark:text-white">
+                          {row.fullName || row.full_name}
                         </div>
-                      ),
-                    },
-                    { key: "specialization", label: "Specialization" },
-                    { key: "qualification", label: "Qualification" },
-                    {
-                      key: "years_experience",
-                      label: "Experience",
-                      render: (row) => `${row.years_experience} yrs`,
-                    },
-                    {
-                      key: "consultation_fee",
-                      label: "Fee",
-                      render: (row) => `$${row.consultation_fee}`,
-                    },
-                    {
-                      key: "availability_status",
-                      label: "Availability",
-                      render: (row) => (
-                        <Badge tone={row.availability_status === "AVAILABLE" ? "green" : "slate"}>
-                          {row.availability_status}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      key: "actions",
-                      label: "Actions",
-                      render: (row) => (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setViewingDoctorId(row.id)}
-                            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
-                            title="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEdit(row)}
-                            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
-                            title="Edit profile"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleAvailability(row)}
-                            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
-                            title="Toggle Availability"
-                          >
-                            {row.availability_status === "AVAILABLE" ? (
-                              <ToggleRight className="h-4 w-4 text-brand-600" />
-                            ) : (
-                              <ToggleLeft className="h-4 w-4 text-slate-400" />
-                            )}
-                          </button>
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              ) : (
+                        <div className="text-xs text-slate-400">{row.employee_id}</div>
+                      </div>
+                    </div>
+                  ),
+                },
+                { key: "specialization", label: "Specialization" },
+                { key: "qualification", label: "Qualification" },
+                {
+                  key: "years_experience",
+                  label: "Experience",
+                  render: (row) => `${row.years_experience} yrs`,
+                },
+                {
+                  key: "consultation_fee",
+                  label: "Fee",
+                  render: (row) => `$${row.consultation_fee}`,
+                },
+                {
+                  key: "availability_status",
+                  label: "Availability",
+                  render: (row) => (
+                    <Badge tone={row.availability_status === "AVAILABLE" ? "green" : "slate"}>
+                      {row.availability_status}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: "actions",
+                  label: "Actions",
+                  render: (row) => (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setViewingDoctorId(row.id)}
+                        className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
+                        title="View details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(row)}
+                        className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
+                        title="Edit profile"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleToggleAvailability(row)}
+                        className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-xl"
+                        title="Toggle Availability"
+                      >
+                        {row.availability_status === "AVAILABLE" ? (
+                          <ToggleRight className="h-4 w-4 text-brand-600" />
+                        ) : (
+                          <ToggleLeft className="h-4 w-4 text-slate-400" />
+                        )}
+                      </button>
+                    </div>
+                  ),
+                },
+              ]}
+              emptyState={
                 <EmptyState
                   title="No doctors found"
                   description="No records match the current query."
                 />
-              )}
-            </CardContent>
-          </Card>
+              }
+            />
+          )}
         </>
       )}
 

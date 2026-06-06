@@ -22,7 +22,17 @@ const INVOICE_SELECT = `
     pu.phone AS "patientPhone",
     cu.full_name AS "creatorName",
     a.doctor_id AS "doctorId",
-    du.full_name AS "doctorName"
+    du.full_name AS "doctorName",
+    COALESCE((
+      SELECT SUM(pay.amount)
+      FROM payments pay
+      WHERE pay.invoice_id = inv.id AND pay.status = 'paid'
+    ), 0) AS "paidAmount",
+    GREATEST(0, inv.total_amount - COALESCE((
+      SELECT SUM(pay.amount)
+      FROM payments pay
+      WHERE pay.invoice_id = inv.id AND pay.status = 'paid'
+    ), 0)) AS "balanceDue"
   FROM invoices inv
   JOIN patients p ON p.id = inv.patient_id
   JOIN users pu ON pu.id = p.user_id

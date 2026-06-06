@@ -8,6 +8,8 @@ async function listDoctors({
   minRating = 0,
   sort = "rating",
   includeInactive = false,
+  page,
+  limit,
 }) {
   const where = [`d.hospital_id = $1`];
   const params = [hospitalId];
@@ -42,37 +44,70 @@ async function listDoctors({
         ? `d.consultation_fee_cents ASC, d.rating DESC, u.full_name ASC`
         : `d.rating DESC, d.experience_years DESC, u.full_name ASC`;
 
-  const result = await db.query(
-    `
-      SELECT
-        d.id,
-        u.id AS "userId",
-        u.full_name AS "fullName",
-        u.full_name AS "full_name",
-        u.email,
-        u.phone,
-        d.specialization,
-        d.qualification,
-        d.department,
-        d.experience_years AS "experienceYears",
-        d.experience_years AS "years_experience",
-        d.rating,
-        d.consultation_fee_cents AS "consultationFeeCents",
-        d.consultation_fee_cents AS "consultation_fee_cents",
-        (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
-        d.biography,
-        d.employee_code AS "employee_id",
-        d.employee_code AS "employee_code",
-        u.status,
-        CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
-        d.created_at
-      FROM doctors d
-      JOIN users u ON u.id = d.user_id
-      WHERE ${where.join(" AND ")}
-      ORDER BY ${orderBy}
-    `,
+  // Get total count first
+  const countResult = await db.query(
+    `SELECT COUNT(*)::int
+     FROM doctors d
+     JOIN users u ON u.id = d.user_id
+     WHERE ${where.join(" AND ")}`,
     params
   );
+  const total = countResult.rows[0].count;
+
+  let queryText = `
+    SELECT
+      d.id,
+      u.id AS "userId",
+      u.full_name AS "fullName",
+      u.full_name AS "full_name",
+      u.email,
+      u.phone,
+      d.specialization,
+      d.qualification,
+      d.department,
+      d.experience_years AS "experienceYears",
+      d.experience_years AS "years_experience",
+      d.rating,
+      d.consultation_fee_cents AS "consultationFeeCents",
+      d.consultation_fee_cents AS "consultation_fee_cents",
+      (d.consultation_fee_cents::numeric / 100.0) AS "consultation_fee",
+      d.biography,
+      d.employee_code AS "employee_id",
+      d.employee_code AS "employee_code",
+      u.status,
+      CASE WHEN u.status = 'active' THEN 'AVAILABLE' ELSE 'UNAVAILABLE' END AS "availability_status",
+      d.created_at
+    FROM doctors d
+    JOIN users u ON u.id = d.user_id
+    WHERE ${where.join(" AND ")}
+    ORDER BY ${orderBy}
+  `;
+
+  const limitValue = limit ? Number(limit) : null;
+  const pageValue = page ? Number(page) : 1;
+
+  if (limitValue !== null) {
+    const offsetValue = (pageValue - 1) * limitValue;
+    params.push(limitValue);
+    queryText += ` LIMIT $${params.length}`;
+    params.push(offsetValue);
+    queryText += ` OFFSET $${params.length}`;
+  }
+
+  const result = await db.query(queryText, params);
+
+  if (limitValue !== null) {
+    const pages = Math.ceil(total / limitValue);
+    return {
+      rows: result.rows,
+      metadata: {
+        total,
+        page: pageValue,
+        limit: limitValue,
+        pages,
+      },
+    };
+  }
 
   return result.rows;
 }
@@ -230,7 +265,7 @@ async function createDoctor(hospitalId, data) {
         data.department || 'General',
         data.license_number || 'LIC-' + (data.employee_id || data.employee_code),
         data.years_experience || data.experience_years || 0,
-        data.consultation_fee_cents || (data.consultation_fee ? data.consultation_fee * 100 : 5000),
+        data.consultation_fee_cents !== undefined && data.consultation_fee_cents !== null ? data.consultation_fee_cents : (data.consultation_fee !== undefined && data.consultation_fee !== null ? data.consultation_fee * 100 : 5000),
         data.biography || null,
         data.qualification || 'MD'
       ]
@@ -242,9 +277,9 @@ async function createDoctor(hospitalId, data) {
 
 async function updateDoctor(hospitalId, id, data) {
   return db.withTransaction(async (client) => {
-    // Fetch doctor record to get userId
+    // Fetch doctor record to get userId and existing license_number
     const docResult = await client.query(
-      `SELECT user_id FROM doctors WHERE id = $1 AND hospital_id = $2`,
+      `SELECT user_id, license_number FROM doctors WHERE id = $1 AND hospital_id = $2`,
       [id, hospitalId]
     );
     const doctor = docResult.rows[0];
@@ -276,9 +311,9 @@ async function updateDoctor(hospitalId, id, data) {
         data.employee_id || data.employee_code,
         data.specialization,
         data.department || 'General',
-        data.license_number || 'LIC-' + (data.employee_id || data.employee_code),
+        data.license_number !== undefined && data.license_number !== null && data.license_number !== "" ? data.license_number : (doctor.license_number || 'LIC-' + (data.employee_id || data.employee_code)),
         data.years_experience || data.experience_years || 0,
-        data.consultation_fee_cents || (data.consultation_fee ? data.consultation_fee * 100 : 5000),
+        data.consultation_fee_cents !== undefined && data.consultation_fee_cents !== null ? data.consultation_fee_cents : (data.consultation_fee !== undefined && data.consultation_fee !== null ? data.consultation_fee * 100 : 5000),
         data.biography || null,
         data.qualification || 'MD',
         id
@@ -418,4 +453,7 @@ module.exports = {
   listTimeOff,
   createTimeOff,
   listTimeOffInRange,
+  createDoctor,
+  updateDoctor,
+  updateDoctorStatus,
 };

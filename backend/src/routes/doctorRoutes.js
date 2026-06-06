@@ -9,32 +9,32 @@ const router = express.Router();
 // Public/authenticated doctors list
 router.get("/", authMiddleware, doctorController.listDoctors);
 
-// Manage doctors (Super Admin and Hospital Admin only)
+// Manage doctors (permission-based authorization)
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("super_admin", "hospital_admin"),
+  permissionMiddleware("manage_doctors"),
   doctorController.createDoctor
 );
 
 router.put(
   "/:id",
   authMiddleware,
-  roleMiddleware("super_admin", "hospital_admin"),
+  permissionMiddleware("manage_doctors"),
   doctorController.updateDoctor
 );
 
 router.patch(
   "/:id/status",
   authMiddleware,
-  roleMiddleware("super_admin", "hospital_admin"),
+  permissionMiddleware("manage_doctors"),
   doctorController.updateDoctorStatus
 );
 
 router.patch(
   "/:id/availability",
   authMiddleware,
-  roleMiddleware("super_admin", "hospital_admin"),
+  permissionMiddleware("manage_doctors"),
   doctorController.updateDoctorAvailability
 );
 

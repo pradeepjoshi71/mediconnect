@@ -2,11 +2,12 @@ const { z } = require("zod");
 const paymentService = require("../services/paymentService");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 
-const paymentMethodSchema = z.enum(["UPI", "Credit Card", "Debit Card", "Net Banking"]);
+const onlinePaymentMethodSchema = z.enum(["UPI", "Credit Card", "Debit Card", "Net Banking", "Wallet"]);
+const offlinePaymentMethodSchema = z.enum(["Cash", "UPI", "Card Machine", "Bank Transfer"]);
 
 const createOrderSchema = z.object({
   invoiceId: z.number().int().positive(),
-  paymentMethod: paymentMethodSchema.default("UPI")
+  paymentMethod: onlinePaymentMethodSchema.default("UPI")
 });
 
 const verifyPaymentSchema = z.object({
@@ -14,12 +15,21 @@ const verifyPaymentSchema = z.object({
   razorpayPaymentId: z.string().min(1),
   razorpaySignature: z.string().min(1),
   invoiceId: z.number().int().positive(),
-  paymentMethod: paymentMethodSchema.default("UPI")
+  paymentMethod: onlinePaymentMethodSchema.default("UPI")
 });
 
 const refundSchema = z.object({
   paymentId: z.number().int().positive(),
   amount: z.number().positive().optional()
+});
+
+const offlinePaymentSchema = z.object({
+  invoiceId: z.number().int().positive(),
+  amount: z.number().positive(),
+  paymentMethod: offlinePaymentMethodSchema,
+  referenceNumber: z.string().max(255).optional(),
+  notes: z.string().max(1000).optional(),
+  receivedBy: z.number().int().positive().optional()
 });
 
 const createOrder = asyncHandler(async (req, res) => {
@@ -32,6 +42,12 @@ const verifyPayment = asyncHandler(async (req, res) => {
   const payload = verifyPaymentSchema.parse(req.body);
   const result = await paymentService.verifyPayment(req.user, payload, req.auditContext);
   res.json(result);
+});
+
+const recordOfflinePayment = asyncHandler(async (req, res) => {
+  const payload = offlinePaymentSchema.parse(req.body);
+  const result = await paymentService.recordOfflinePayment(req.user, payload, req.auditContext);
+  res.status(201).json(result);
 });
 
 const refundPayment = asyncHandler(async (req, res) => {
@@ -60,7 +76,6 @@ const createCheckout = asyncHandler(async (req, res) => {
 
 const updatePaymentStatus = asyncHandler(async (req, res) => {
   const params = z.object({ id: z.coerce.number().int().positive() }).parse(req.params);
-  const payload = z.object({ status: z.string() }).parse(req.body);
   const result = await paymentService.verifyPayment(req.user, {
     razorpayOrderId: "order_legacy",
     razorpayPaymentId: "pay_legacy",
@@ -82,6 +97,7 @@ const downloadInvoicePdf = asyncHandler(async (req, res) => {
 module.exports = {
   createOrder,
   verifyPayment,
+  recordOfflinePayment,
   refundPayment,
   paymentHistory,
   listPayments,
