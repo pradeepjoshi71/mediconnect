@@ -30,7 +30,9 @@ const pharmacyRoutes = require("./routes/pharmacyRoutes");
 const hospitalRoutes = require("./routes/hospitalRoutes");
 const storageRoutes = require("./routes/storageRoutes");
 const pushRoutes = require("./routes/pushRoutes");
+const systemHealthRoutes = require("./routes/systemHealthRoutes");
 const minioService = require("./services/minioService");
+const backupScheduler = require("./services/backupScheduler");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -127,6 +129,9 @@ minioService.ensureBuckets().catch((err) =>
   logger.error('MinIO: startup bucket provisioning failed', { error: err.message })
 );
 
+// Start backup scheduler (non-blocking — runs after 5s to let DB pool warm up)
+backupScheduler.start();
+
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
 app.use("/api/v1/doctors", doctorRoutes);
@@ -172,9 +177,13 @@ app.use("/api/pharmacy", pharmacyRoutes);
 app.use("/api/v1/hospitals", hospitalRoutes);
 app.use("/api/v1/storage", storageRoutes);
 app.use("/api/v1/push", pushRoutes);
+app.use("/api/v1/subscriptions", require("./routes/subscriptionRoutes"));
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/storage", storageRoutes);
 app.use("/api/push", pushRoutes);
+
+// Phase 7 — Production Hardening
+app.use("/api/v1/system", systemHealthRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

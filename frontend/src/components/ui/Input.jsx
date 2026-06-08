@@ -4,10 +4,11 @@ export function Input({ className, ...props }) {
   return (
     <input
       className={cn(
-        "h-11 w-full rounded-2xl border border-slate-200 bg-white/95 px-4 text-sm text-slate-900 shadow-sm",
-        "placeholder:text-slate-400",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70 focus-visible:border-brand-300",
-        "dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500",
+        "h-11 w-full rounded-xl border border-slate-200 bg-white/60 px-4 text-sm text-slate-900 transition-all duration-200",
+        "placeholder:text-slate-400 focus:bg-white focus:border-brand-500/80",
+        "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/10",
+        "disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed",
+        "dark:border-neutral-200/10 dark:bg-neutral-100/40 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:bg-neutral-50 dark:focus:border-brand-500/80",
         className
       )}
       {...props}

@@ -494,19 +494,38 @@ async function buildInvoicePdf(user, invoiceId, context) {
   const paidAmount = Number(invoice.paidAmount || 0);
   const balanceDue = Number(invoice.balanceDue || invoice.totalAmount);
 
+  // Fetch dynamic branding settings
+  let branding = {};
+  let supportPhone = "+91-80-4412-3300";
+  let billingEmail = "billing@mediconnect.local";
+  try {
+    const hospitalResult = await db.query(
+      "SELECT name, code, support_phone AS \"supportPhone\", billing_email AS \"billingEmail\", settings FROM hospitals WHERE id = $1 LIMIT 1",
+      [user.hospitalId]
+    );
+    const hospital = hospitalResult.rows[0];
+    if (hospital) {
+      branding = hospital.settings?.branding || {};
+      if (hospital.supportPhone) supportPhone = hospital.supportPhone;
+      if (hospital.billingEmail) billingEmail = hospital.billingEmail;
+    }
+  } catch (err) {
+    // Fallback to defaults
+  }
+
   return {
     fileName: `${invoice.invoiceNumber}.pdf`,
     buffer: buildPdfBuffer({
       title: `Invoice ${invoice.invoiceNumber}`,
-      subtitle: "MediConnect Hospital Billing",
+      subtitle: branding.footerText || "MediConnect Hospital Billing",
       sections: [
         {
           heading: "Hospital Details",
           lines: [
-            `Hospital: ${invoice.hospitalName || user.hospitalName || "MediConnect Hospital"}`,
+            `Hospital: ${branding.displayName || invoice.hospitalName || user.hospitalName || "MediConnect Hospital"}`,
             `Branch: ${invoice.hospitalCode || user.hospitalCode || "MCH-BLR"}`,
-            `Contact: +91-80-4412-3300`,
-            `Email: billing@mediconnect.local`
+            `Contact: ${supportPhone}`,
+            `Email: ${billingEmail}`
           ],
         },
         {

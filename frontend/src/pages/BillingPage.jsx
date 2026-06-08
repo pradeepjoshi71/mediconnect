@@ -42,6 +42,8 @@ import {
 import { listPatients } from "../services/patientService";
 import { PageHeader } from "../components/ui/PageHeader";
 import { StatCard } from "../components/ui/StatCard";
+import { KpiCard } from "../components/ui/KpiCard";
+import { Drawer } from "../components/ui/Drawer";
 import { PaginatedTable } from "../components/ui/PaginatedTable";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -127,6 +129,9 @@ export default function BillingPage() {
   const [offlineRef, setOfflineRef] = useState("");
   const [offlineNotes, setOfflineNotes] = useState("");
   const [offlineSubmitting, setOfflineSubmitting] = useState(false);
+
+  // Payment history drawer
+  const [historyDrawerInvoice, setHistoryDrawerInvoice] = useState(null);
 
   // Invoice form state
   const [formPatientId, setFormPatientId] = useState("");
@@ -475,44 +480,49 @@ export default function BillingPage() {
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         {isAdmin && (
           <>
-            <StatCard
+            <KpiCard
               icon={Landmark}
               label="Revenue Today"
               value={formatCurrency(metrics.revenueToday * 100)}
-              helper="Daily collected payments"
+              trend={{ value: "Daily Live", isPositive: true }}
+              description="payments collected today"
               accent="teal"
             />
-            <StatCard
+            <KpiCard
               icon={DollarSign}
               label="Revenue This Month"
               value={formatCurrency(metrics.revenueThisMonth * 100)}
-              helper="Monthly cumulative total"
+              trend={{ value: "Monthly", isPositive: true }}
+              description="cumulative monthly total"
               accent="brand"
             />
           </>
         )}
         {!isAdmin && (
-          <StatCard
+          <KpiCard
             icon={Landmark}
             label="Paid to Date"
             value={formatCurrency(metrics.revenueThisMonth * 100)}
-            helper="Your settled invoices total"
+            trend={{ value: "Settled", isPositive: true }}
+            description="your settled invoices total"
             accent="teal"
           />
         )}
-        <StatCard
+        <KpiCard
           icon={CreditCard}
           label="Outstanding Balance"
           value={formatCurrency(metrics.outstandingInvoices * 100)}
-          helper="Due payments awaiting settlement"
+          trend={{ value: "Pending Due", isPositive: false }}
+          description="payments awaiting settlement"
           accent="amber"
         />
-        <StatCard
+        <KpiCard
           icon={Receipt}
           label="Completed Payments"
           value={metrics.successfulPayments}
-          helper={`Failed transactions: ${metrics.failedPayments}`}
-          accent="teal"
+          trend={{ value: `${metrics.failedPayments} failed`, isPositive: metrics.failedPayments === 0 }}
+          description="successful transaction history"
+          accent="success"
         />
       </div>
 
@@ -571,7 +581,7 @@ export default function BillingPage() {
               {
                 key: "invoiceNumber",
                 label: "Invoice ID",
-                render: (row) => <span className="font-mono font-semibold text-xs">{row.invoiceNumber}</span>
+                render: (row) => <span className="font-mono font-bold text-xs tracking-tight text-slate-800 dark:text-slate-200">{row.invoiceNumber}</span>
               },
               { key: "patientName", label: "Patient" },
               {
@@ -583,16 +593,16 @@ export default function BillingPage() {
                 key: "totalAmount",
                 label: "Total Bill",
                 render: (row) => (
-                  <span className="font-semibold text-slate-950 dark:text-white">
+                  <span className="font-bold text-slate-900 dark:text-white">
                     {formatCurrency(row.amountCents)}
                   </span>
                 )
               },
               {
                 key: "paidAmount",
-                label: "Paid",
+                label: "Amount Paid",
                 render: (row) => (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs">
                     {formatCurrency(Math.round(Number(row.paidAmount || 0) * 100))}
                   </span>
                 )
@@ -603,11 +613,11 @@ export default function BillingPage() {
                 render: (row) => {
                   const due = Number(row.balanceDue ?? row.totalAmount);
                   return due > 0 ? (
-                    <span className="text-rose-600 dark:text-rose-400 font-semibold text-sm">
+                    <span className="text-rose-600 dark:text-rose-400 font-bold text-xs">
                       {formatCurrency(Math.round(due * 100))}
                     </span>
                   ) : (
-                    <span className="text-slate-400 text-sm">—</span>
+                    <span className="text-slate-400 text-xs font-semibold">—</span>
                   );
                 }
               },
@@ -630,7 +640,31 @@ export default function BillingPage() {
                 label: "Actions",
                 render: (row) => (
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* PDF download — always visible */}
+                    {/* Pay Online / Pay Now placeholder */}
+                    {canPay(row) && (
+                      <Button
+                        size="sm"
+                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-[10px] px-3 py-1 font-bold shadow-soft transition-all"
+                        onClick={() => handlePayInvoice(row)}
+                        title="Pay Now"
+                      >
+                        Pay Now
+                      </Button>
+                    )}
+
+                    {/* Record Payment placeholder — admins only */}
+                    {isAdmin && canPay(row) && (
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] px-3 py-1 font-bold shadow-soft transition-all"
+                        onClick={() => handleOpenOfflineModal(row)}
+                        title="Record Payment"
+                      >
+                        Record Payment
+                      </Button>
+                    )}
+
+                    {/* PDF download */}
                     <Button
                       size="sm"
                       variant="outline"
@@ -640,30 +674,16 @@ export default function BillingPage() {
                       <Download className="h-3.5 w-3.5" />
                     </Button>
 
-                    {/* Pay Online — patients and admins when balance due */}
-                    {canPay(row) && (
-                      <Button
-                        size="sm"
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs px-2.5"
-                        onClick={() => handlePayInvoice(row)}
-                        title="Pay Online via Razorpay"
-                      >
-                        Pay Online
-                      </Button>
-                    )}
-
-                    {/* Record Payment — admins only */}
-                    {isAdmin && canPay(row) && (
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs px-2.5"
-                        onClick={() => handleOpenOfflineModal(row)}
-                        title="Record offline cash/UPI/card payment"
-                      >
-                        <Banknote className="h-3.5 w-3.5 mr-1" />
-                        Record Payment
-                      </Button>
-                    )}
+                    {/* Transaction History Drawer */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setHistoryDrawerInvoice(row)}
+                      title="Payment History"
+                      className="rounded-xl px-2.5"
+                    >
+                      <History className="h-3.5 w-3.5" />
+                    </Button>
 
                     {/* Edit — admins, only for non-paid invoices */}
                     {isAdmin && row.status !== "paid" && row.status !== "cancelled" && row.status !== "refunded" && (
@@ -1112,6 +1132,69 @@ export default function BillingPage() {
           </div>
         </form>
       </Modal>
+
+      {/* ── Payment History Drawer ────────────────────────────────────────── */}
+      <Drawer
+        open={Boolean(historyDrawerInvoice)}
+        onClose={() => setHistoryDrawerInvoice(null)}
+        title={`Invoice Payment History — ${historyDrawerInvoice?.invoiceNumber}`}
+        size="max-w-lg"
+      >
+        <div className="space-y-6">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-neutral-800 border border-slate-100 dark:border-neutral-200/10 flex justify-between items-center">
+            <div>
+              <div className="text-xs text-slate-400 font-bold uppercase">Total Billed</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-white">
+                {historyDrawerInvoice && formatCurrency(historyDrawerInvoice.amountCents)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-slate-400 font-bold uppercase">Settled</div>
+              <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                {historyDrawerInvoice && formatCurrency(Math.round(Number(historyDrawerInvoice.paidAmount || 0) * 100))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Transactions</h4>
+            {payments.filter(p => p.invoiceNumber === historyDrawerInvoice?.invoiceNumber).length ? (
+              payments
+                .filter(p => p.invoiceNumber === historyDrawerInvoice?.invoiceNumber)
+                .map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="p-4 rounded-xl border border-slate-100 dark:border-neutral-200/10 bg-white/50 dark:bg-neutral-100/30 flex flex-col gap-2.5 transition-all duration-200 hover:border-slate-200 dark:hover:border-neutral-200/20"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
+                        {payment.transactionId || payment.referenceNumber || "Offline Receipt"}
+                      </div>
+                      <Badge tone={statusTone(payment.status)} className="text-[10px]">
+                        {payment.status.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-neutral-400">
+                      <div>
+                        {payment.paymentMethodLabel} · <span className="capitalize">{payment.source}</span>
+                      </div>
+                      <div className="font-bold text-slate-700 dark:text-slate-200">
+                        {formatCurrency(payment.amountCents)}
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-400 text-right">
+                      {formatDateTime(payment.paidAt)}
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="text-center p-8 rounded-xl border border-dashed border-slate-200 dark:border-neutral-800 text-xs text-slate-400 dark:text-neutral-500">
+                No payments recorded for this invoice yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </Drawer>
     </div>
   );
 }

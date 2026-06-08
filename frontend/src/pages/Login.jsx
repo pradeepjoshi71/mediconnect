@@ -1,18 +1,23 @@
 import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { login } from "../services/authService";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
+import { useBranding } from "../contexts/BrandingContext";
 
 const ROLE_DASHBOARD = {
-  admin: "/dashboard",
-  doctor: "/dashboard",
-  receptionist: "/dashboard",
-  patient: "/dashboard",
-  lab_technician: "/lab/dashboard",
+  super_admin: "/super-admin",
+  hospital_admin: "/admin",
+  admin: "/admin",
+  doctor: "/doctor",
+  receptionist: "/reception",
+  patient: "/patient",
+  lab_technician: "/lab",
+  pharmacist: "/pharmacy",
+  nurse: "/nurse"
 };
 
 function getDashboardForRole(role) {
@@ -21,9 +26,30 @@ function getDashboardForRole(role) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { loadBrandingByCode } = useBranding();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ hospitalCode: "MCH-BLR", email: "", password: "" });
+  const [hospitalBranding, setHospitalBranding] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadBranding() {
+      if (!form.hospitalCode.trim()) return;
+      try {
+        const b = await loadBrandingByCode(form.hospitalCode.trim());
+        if (active) {
+          setHospitalBranding(b || null);
+        }
+      } catch (err) {
+        // ignore errors
+      }
+    }
+    loadBranding();
+    return () => {
+      active = false;
+    };
+  }, [form.hospitalCode, loadBrandingByCode]);
 
   const canSubmit = useMemo(
     () => form.email.trim().length > 3 && form.password.trim().length > 0,
@@ -86,11 +112,21 @@ export default function Login() {
 
         <section className="flex items-center justify-center p-6 sm:p-10">
           <Card className="w-full max-w-xl p-8">
-            <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
-              Sign in
+            <div className="flex items-center gap-3">
+              {hospitalBranding?.logoUrl ? (
+                <img
+                  src={hospitalBranding.logoUrl}
+                  alt={`${hospitalBranding.displayName || "Hospital"} Logo`}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
+                  Sign in
+                </div>
+              )}
             </div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
-              Welcome back to MediConnect
+              Welcome back to {hospitalBranding?.displayName || "MediConnect"}
             </h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               Demo accounts from the seeded database include:
@@ -183,6 +219,11 @@ export default function Login() {
                   Admin Login
                 </Button>
               </Link>
+              {hospitalBranding?.footerText && (
+                <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                  {hospitalBranding.footerText}
+                </div>
+              )}
             </div>
           </Card>
         </section>

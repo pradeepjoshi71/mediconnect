@@ -1,34 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: light;
-  font-family: "Avenir Next", "Segoe UI Variable", "Trebuchet MS", sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  /* White-label branding tokens - Light Mode */
+  --mc-primary: #2559eb;
+  --mc-secondary: #14b8a6;
+  --mc-primary-hover: color-mix(in srgb, var(--mc-primary) 85%, black);
+  --mc-primary-light: color-mix(in srgb, var(--mc-primary) 8%, white);
+  --mc-primary-border: color-mix(in srgb, var(--mc-primary) 20%, white);
+  --mc-secondary-hover: color-mix(in srgb, var(--mc-secondary) 85%, black);
+  --mc-secondary-light: color-mix(in srgb, var(--mc-secondary) 8%, white);
+  --primary: 37 89 235;      /* #2559eb - Healthcare Blue */
+  --primary-hover: 28 68 211;
+  --secondary: 13 148 136;    /* Teal */
+  
+  --success: 16 185 129;      /* Green */
+  --warning: 245 158 11;      /* Amber */
+  --danger: 239 68 68;        /* Red */
+  
+  --neutral-50: 248 250 252;
+  --neutral-100: 241 245 249;
+  --neutral-200: 226 232 240;
+  --neutral-300: 203 213 225;
+  --neutral-400: 148 163 184;
+  --neutral-500: 100 116 139;
+  --neutral-600: 71 85 105;
+  --neutral-700: 51 65 85;
+  --neutral-800: 30 41 59;
+  --neutral-900: 15 23 42;
+  --neutral-950: 2 6 23;
+  
+  /* Layout Shell Gradients */
   --shell-bg:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 32%),
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.16), transparent 30%),
-    linear-gradient(180deg, #f8fbff 0%, #eef6ff 50%, #f7fafc 100%);
+    radial-gradient(circle at top left, rgba(37, 89, 235, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 20%, rgba(20, 184, 166, 0.06), transparent 30%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+    
   --shell-pattern:
-    linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.02) 1px, transparent 1px),
+    linear-gradient(rgba(15, 23, 42, 0.02) 1px, transparent 1px);
 }
 
 html.dark {
   color-scheme: dark;
+  
+  /* White-label branding tokens - Dark Mode */
+  --mc-primary: #84aaff;
+  --mc-secondary: #2dd4bf;
+  --mc-primary-hover: color-mix(in srgb, var(--mc-primary) 85%, white);
+  --mc-primary-light: color-mix(in srgb, var(--mc-primary) 12%, black);
+  --mc-primary-border: color-mix(in srgb, var(--mc-primary) 25%, black);
+  --mc-secondary-hover: color-mix(in srgb, var(--mc-secondary) 85%, white);
+  --mc-secondary-light: color-mix(in srgb, var(--mc-secondary) 12%, black);
+
+  /* Core Semantic Color Tokens - Dark Mode */
+  --primary: 132 170 255;     /* brand-300 for high dark contrast */
+  --primary-hover: 180 205 255;
+  --secondary: 45 212 191;    /* Teal 400 */
+  
+  --success: 52 211 153;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+  
+  --neutral-50: 9 13 26;       /* Deep clinical slate-black */
+  --neutral-100: 15 22 41;
+  --neutral-200: 28 37 60;
+  --neutral-300: 44 56 84;
+  --neutral-400: 71 85 105;
+  --neutral-500: 100 116 139;
+  --neutral-600: 148 163 184;
+  --neutral-700: 203 213 225;
+  --neutral-800: 226 232 240;
+  --neutral-900: 241 245 249;
+  --neutral-950: 248 250 252;
+  
+  /* Layout Shell Gradients */
   --shell-bg:
-    radial-gradient(circle at top left, rgba(8, 145, 178, 0.18), transparent 28%),
-    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 30%),
-    linear-gradient(180deg, #020617 0%, #0f172a 55%, #111827 100%);
+    radial-gradient(circle at top left, rgba(37, 89, 235, 0.12), transparent 35%),
+    radial-gradient(circle at 80% 20%, rgba(45, 212, 191, 0.08), transparent 30%),
+    linear-gradient(180deg, #070a13 0%, #0d1222 50%, #04060d 100%);
+    
   --shell-pattern:
-    linear-gradient(rgba(2, 6, 23, 0.74), rgba(2, 6, 23, 0.74)),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(7, 10, 19, 0.9), rgba(7, 10, 19, 0.9)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px);
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  @apply bg-slate-50 text-slate-900 antialiased dark:bg-neutral-50 dark:text-slate-100 transition-colors duration-300;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 #root {
@@ -41,9 +108,48 @@ body {
 
 .bg-shell-pattern {
   background-image: var(--shell-pattern);
-  background-size: auto, 26px 26px, 26px 26px;
+  background-size: auto, 24px 24px, 24px 24px;
 }
 
 .text-balance {
   text-wrap: balance;
+}
+
+/* Custom Scrollbar for modern SaaS feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.15);
+  border-radius: 100px;
+  border: 2px solid transparent;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.35);
+}
+
+/* Focus outline helpers */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-50 transition-all duration-200;
+}
+
+/* Premium utility classes */
+.glass-panel {
+  @apply bg-white/70 border border-slate-200/60 shadow-premium backdrop-blur-xl dark:bg-neutral-100/70 dark:border-neutral-200/10 dark:shadow-none;
+}
+
+.hover-glow {
+  @apply transition-all duration-300 hover:shadow-premium-glow hover:-translate-y-[2px] active:translate-y-0;
+}
+
+.smooth-transition {
+  @apply transition-all duration-200;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }

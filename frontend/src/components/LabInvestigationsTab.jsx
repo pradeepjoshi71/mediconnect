@@ -5,6 +5,7 @@ import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
 import { EmptyState } from "./ui/EmptyState";
 import { Modal } from "./ui/Modal";
+import { Select } from "./ui/Select";
 import { listLabTests, listLabOrders, createLabOrder, listLabReports, downloadLabReport } from "../services/labService";
 import { formatDateTime } from "../utils/formatters";
 
@@ -83,7 +84,7 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
   };
 
   if (loading) {
-    return <div className="text-center text-sm text-slate-500 py-6">Loading lab investigations...</div>;
+    return <div className="text-center text-sm font-semibold text-slate-500 py-6 animate-pulse">Loading lab investigations...</div>;
   }
 
   return (
@@ -94,7 +95,7 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
           <Beaker className="h-5 w-5 text-brand-600" /> Laboratory Investigations
         </h3>
         {isDoctorOrAdmin && (
-          <Button size="sm" onClick={() => setOrderModalOpen(true)} className="flex items-center gap-1">
+          <Button size="sm" onClick={() => setOrderModalOpen(true)} className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl">
             <Plus className="h-4 w-4" /> Order Lab Test
           </Button>
         )}
@@ -102,8 +103,8 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Lab Orders List */}
-        <div className="space-y-4 rounded-3xl border border-slate-100 p-5 dark:border-slate-800 bg-white/50 dark:bg-slate-950/20">
-          <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500">Test Orders history</h4>
+        <div className="space-y-4 rounded-3xl border border-slate-200/60 bg-white/50 p-5 dark:border-neutral-200/10 dark:bg-neutral-100/5">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Test Orders history</h4>
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
             {orders.length ? (
               orders.map((o) => {
@@ -114,10 +115,10 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
                 if (o.orderStatus === "COMPLETED") tone = "teal";
                 if (o.orderStatus === "CANCELLED") tone = "red";
                 return (
-                  <div key={o.id} className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/50">
+                  <div key={o.id} className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-neutral-200/5 bg-white dark:bg-neutral-100/5 hover:bg-slate-50/50 dark:hover:bg-neutral-100/10 transition-colors duration-200">
                     <div>
                       <div className="text-sm font-bold text-slate-900 dark:text-white">{o.testName}</div>
-                      <div className="mt-1 flex items-center gap-2 text-xxs text-slate-400">
+                      <div className="mt-1 flex items-center gap-2 text-xxs text-slate-400 dark:text-neutral-500">
                         <span>Ordered: {formatDateTime(o.orderedAt)}</span>
                         <span>•</span>
                         <span>Dr: {o.doctorName}</span>
@@ -134,27 +135,27 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
         </div>
 
         {/* Finalized Lab Reports */}
-        <div className="space-y-4 rounded-3xl border border-slate-100 p-5 dark:border-slate-800 bg-white/50 dark:bg-slate-950/20">
-          <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500">Diagnostic Reports</h4>
+        <div className="space-y-4 rounded-3xl border border-slate-200/60 bg-white/50 p-5 dark:border-neutral-200/10 dark:bg-neutral-100/5">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Diagnostic Reports</h4>
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
             {reports.length ? (
               reports.map((r) => (
-                <div key={r.id} className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950/50">
+                <div key={r.id} className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 dark:border-neutral-200/5 bg-white dark:bg-neutral-100/5 hover:bg-slate-50/50 dark:hover:bg-neutral-100/10 transition-colors duration-200">
                   <div>
                     <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <FileText className="h-4 w-4 text-brand-600" /> {r.testName}
+                      <FileText className="h-4 w-4 text-brand-600 dark:text-brand-400" /> {r.testName}
                     </div>
-                    <div className="mt-1 flex items-center gap-2 text-xxs text-slate-400">
+                    <div className="mt-1 flex items-center gap-2 text-xxs text-slate-400 dark:text-neutral-500">
                       <span>Date: {formatDateTime(r.uploadedAt)}</span>
                       <span>•</span>
                       <span>By: {r.uploaderName || "Technician"}</span>
                     </div>
                     {r.reportNotes && (
-                      <p className="mt-1.5 text-xxs italic text-slate-500 max-w-xs truncate">{r.reportNotes}</p>
+                      <p className="mt-1.5 text-xxs italic text-slate-500 dark:text-neutral-500 max-w-xs truncate">{r.reportNotes}</p>
                     )}
                   </div>
-                  <Button size="xs" variant="ghost" onClick={() => handleDownloadReport(r)} className="hover:bg-slate-50">
-                    <Download className="h-4 w-4 text-slate-600" />
+                  <Button size="xs" variant="ghost" onClick={() => handleDownloadReport(r)} className="hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-950/30 dark:hover:text-brand-400 rounded-xl">
+                    <Download className="h-4 w-4 text-slate-650 dark:text-slate-350" />
                   </Button>
                 </div>
               ))
@@ -169,11 +170,11 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
       <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Order Diagnostic Lab Test">
         <form onSubmit={handlePlaceOrder} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Select Test Profile *</label>
-            <select
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500 mb-1.5">Select Test Profile *</label>
+            <Select
               value={selectedTestId}
               onChange={(e) => setSelectedTestId(e.target.value)}
-              className="w-full h-11 px-4 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
+              className="bg-white"
               required
             >
               {tests.map((test) => (
@@ -181,14 +182,14 @@ export default function LabInvestigationsTab({ patientId, isDoctorOrAdmin }) {
                   [{test.testCode}] {test.testName} (Category: {test.category})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-neutral-200/5">
             <Button type="button" variant="outline" onClick={() => setOrderModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" loading={ordering} className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl">
+            <Button type="submit" loading={ordering} className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl">
               Place Test Order
             </Button>
           </div>

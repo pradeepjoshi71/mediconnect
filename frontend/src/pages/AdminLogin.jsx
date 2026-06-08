@@ -1,17 +1,39 @@
-import { Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { login, logout } from "../services/authService";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
+import { useBranding } from "../contexts/BrandingContext";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { loadBrandingByCode } = useBranding();
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", hospitalCode: "MCH-BLR" });
+  const [hospitalBranding, setHospitalBranding] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadBranding() {
+      if (!form.hospitalCode.trim()) return;
+      try {
+        const b = await loadBrandingByCode(form.hospitalCode.trim());
+        if (active) {
+          setHospitalBranding(b || null);
+        }
+      } catch (err) {
+        // ignore errors
+      }
+    }
+    loadBranding();
+    return () => {
+      active = false;
+    };
+  }, [form.hospitalCode, loadBrandingByCode]);
 
   const canSubmit = useMemo(
     () => form.email.trim().length > 3 && form.password.trim().length > 0,
@@ -27,7 +49,7 @@ export default function AdminLogin() {
       const data = await login({
         email: form.email,
         password: form.password,
-        hospitalCode: "MCH-BLR", // Reuse default hospital code
+        hospitalCode: form.hospitalCode,
       });
 
       const isAuthorized =
@@ -37,7 +59,11 @@ export default function AdminLogin() {
 
       if (isAuthorized) {
         toast.success("Admin signed in successfully");
-        navigate("/admin/dashboard");
+        if (data.user?.role === "super_admin") {
+          navigate("/super-admin");
+        } else {
+          navigate("/admin");
+        }
       } else {
         await logout();
         toast.error("Access denied. Only administrators can sign in here.");
@@ -89,17 +115,44 @@ export default function AdminLogin() {
 
         <section className="flex items-center justify-center p-6 sm:p-10">
           <Card className="w-full max-w-xl p-8">
-            <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
-              Administrator sign in
+            <div className="flex items-center gap-3">
+              {hospitalBranding?.logoUrl ? (
+                <img
+                  src={hospitalBranding.logoUrl}
+                  alt={`${hospitalBranding.displayName || "Hospital"} Logo`}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <div className="text-xs font-bold uppercase tracking-[0.24em] text-brand-600 dark:text-brand-300">
+                  Administrator sign in
+                </div>
+              )}
             </div>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
-              Welcome back, Admin
+              Welcome back to {hospitalBranding?.displayName || "MediConnect"}
             </h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               Log in with your administrator credentials to access the command center dashboard.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <label className="block">
+                <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  Hospital code
+                </div>
+                <div className="relative">
+                  <Building2 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={form.hospitalCode}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, hospitalCode: event.target.value }))
+                    }
+                    className="pl-11"
+                    placeholder="MCH-BLR"
+                  />
+                </div>
+              </label>
+
               <label className="block">
                 <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Email
@@ -149,13 +202,20 @@ export default function AdminLogin() {
             </form>
 
             <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
-              Not an administrator?{" "}
-              <Link
-                to="/login"
-                className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
-              >
-                Go to Patient Portal
-              </Link>
+              <div>
+                Not an administrator?{" "}
+                <Link
+                  to="/login"
+                  className="font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+                >
+                  Go to Patient Portal
+                </Link>
+              </div>
+              {hospitalBranding?.footerText && (
+                <div className="mt-4 text-xs text-slate-400 dark:text-slate-500">
+                  {hospitalBranding.footerText}
+                </div>
+              )}
             </div>
           </Card>
         </section>
