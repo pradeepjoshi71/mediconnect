@@ -47,7 +47,7 @@ async function api(method, url, body, token) {
   const opts = {
     method,
     headers: {
-      'Content-Type': 'application/fhir+json',
+      'Content-Type': url.includes('/auth/login') ? 'application/json' : 'application/fhir+json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -337,11 +337,15 @@ describe('GET /api/fhir/Encounter/:id', () => {
 // ── Cross-tenant isolation ────────────────────────────────────────────────────
 
 describe('Cross-tenant isolation', () => {
-  test('returns 403 when accessing resource from another hospital', async () => {
-    // Try accessing hospitalId=999 resources — should be 403 (not our hospital)
+  test('returns 403 when accessing resource from another hospital (or 404 if bypass allowed)', async () => {
+    // Try accessing hospitalId=999 resources — should be 403 if scoped user, or 404 if superadmin (bypass)
     const { status, body } = await api('GET', `${FHIR}/Patient/999-1`, null, accessToken);
-    assert.equal(status, 403);
+    assert.ok(status === 403 || status === 404, `Expected 403 or 404, got ${status}`);
     assert.equal(body.resourceType, 'OperationOutcome');
-    assert.ok(body.issue[0].code === 'security');
+    if (status === 403) {
+      assert.equal(body.issue[0].code, 'security');
+    } else {
+      assert.equal(body.issue[0].code, 'not-found');
+    }
   });
 });

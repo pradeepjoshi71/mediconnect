@@ -26,7 +26,7 @@ async function getBackupLogs(req, res, next) {
     const conditions = [];
     const params = [];
 
-    if (type && ['database', 'storage'].includes(type)) {
+    if (type && ['database', 'storage', 'notification_job', 'push_retry_job', 'cleanup_job'].includes(type)) {
       params.push(type);
       conditions.push(`backup_type = $${params.length}`);
     }
@@ -104,16 +104,19 @@ async function triggerManualBackup(req, res, next) {
   try {
     const { type } = req.body;
 
-    if (!type || !['database', 'storage'].includes(type)) {
-      return res.status(400).json({ success: false, message: 'type must be "database" or "storage"' });
+    if (!type || !['database', 'storage', 'notification_job', 'push_retry_job', 'cleanup_job'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid job type' });
     }
 
-    logger.info('BackupController: manual backup triggered', { type, userId: req.user?.id });
+    logger.info('BackupController: manual job trigger requested', { type, userId: req.user?.id });
 
     // Run asynchronously — respond immediately, result written to backup_logs
-    const runner = type === 'database'
-      ? backupScheduler.runDatabaseBackup
-      : backupScheduler.runStorageBackup;
+    let runner;
+    if (type === 'database') runner = backupScheduler.runDatabaseBackup;
+    else if (type === 'storage') runner = backupScheduler.runStorageBackup;
+    else if (type === 'notification_job') runner = backupScheduler.runNotificationJob;
+    else if (type === 'push_retry_job') runner = backupScheduler.runPushRetryJob;
+    else if (type === 'cleanup_job') runner = backupScheduler.runCleanupJob;
 
     // Kick off without awaiting so the HTTP response is instant
     runner({ triggeredBy: 'manual' }).then(async (result) => {
@@ -145,8 +148,8 @@ async function updateSchedulerConfig(req, res, next) {
   try {
     const { type, enabled, retention_days } = req.body;
 
-    if (!type || !['database', 'storage'].includes(type)) {
-      return res.status(400).json({ success: false, message: 'type must be "database" or "storage"' });
+    if (!type || !['database', 'storage', 'notification_job', 'push_retry_job', 'cleanup_job'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Invalid job type' });
     }
 
     const updates = [];

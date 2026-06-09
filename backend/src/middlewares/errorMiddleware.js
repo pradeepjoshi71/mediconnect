@@ -48,6 +48,13 @@ function errorMiddleware(error, req, res, _next) {
     error: error?.message,
   });
 
+  if (process.env.SENTRY_DSN) {
+    try {
+      const Sentry = require("@sentry/node");
+      Sentry.captureException(error);
+    } catch (_) {}
+  }
+
   return res.status(500).json({
     error: error.message,
     stack: process.env.NODE_ENV !== "production" ? error.stack : undefined

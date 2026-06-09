@@ -27,7 +27,7 @@ router.post(
   "/webhook",
   asyncHandler(async (req, res) => {
     const signature = req.headers["x-razorpay-signature"];
-    const result = await paymentService.handleWebhook(req.body, signature);
+    const result = await paymentService.handleWebhook(req.body, signature, req.rawBody);
     res.json(result);
   })
 );

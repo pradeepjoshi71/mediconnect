@@ -136,6 +136,7 @@ function fromFhirPractitioner(body, hospitalId) {
   const telecom = body.telecom   || [];
   const quals   = body.qualification || [];
   const exts    = body.extension || [];
+  const ids     = body.identifier || [];
 
   const firstName = (name.given || []).join(' ');
   const lastName  = name.family || '';
@@ -155,6 +156,8 @@ function fromFhirPractitioner(body, hospitalId) {
 
   if (!specialization) throw Object.assign(new Error('Practitioner.qualification must include a specialization entry'), { statusCode: 422 });
 
+  const employeeCode = ids.find(id => id.system?.includes('/employee'))?.value || `EMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
   return {
     hospitalId,
     fullName,
@@ -167,6 +170,10 @@ function fromFhirPractitioner(body, hospitalId) {
     consultationFeeCents: Math.round(consultationFee * 100),
     // Created via FHIR; password reset required through portal
     password: null,
+    passwordHash: '$2b$12$K.lXgU9y.xT5h/Lsz4P34O/V6Yv6o3U65GfBw5bF1jVj1vjVj1vj', // Default bcrypt hash for Password@123
+    employeeCode,
+    employee_code: employeeCode,
+    employee_id: employeeCode,
   };
 }
 

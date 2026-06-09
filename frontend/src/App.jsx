@@ -4,6 +4,8 @@ import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import RoleRoute from "./components/RoleRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
+import BetaFeedbackWidget from "./components/BetaFeedbackWidget";
 import AppShell from "./layouts/AppShell";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -133,6 +135,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Toaster
         position="top-right"
@@ -365,7 +368,9 @@ export default function App() {
           </Route>
         </Route>
       </Routes>
+        <BetaFeedbackWidget />
       </BrandingProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }

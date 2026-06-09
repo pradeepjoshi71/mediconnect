@@ -175,8 +175,10 @@ function fromFhirAppointment(body, hospitalId) {
     doctorId:        parsedDoctor.internalId,
     scheduledStart:  start.toISOString(),
     scheduledEnd:    end.toISOString(),
-    appointmentType: body.serviceType?.[0]?.coding?.[0]?.code || 'outpatient',
-    consultationMode: body.appointmentType?.coding?.[0]?.code === 'TELEMEDICINE' ? 'telemedicine' : 'in-person',
+    appointmentType: ['consultation', 'follow_up', 'lab_review', 'vaccination'].includes(body.serviceType?.[0]?.coding?.[0]?.code)
+      ? body.serviceType[0].coding[0].code
+      : 'consultation',
+    consultationMode: body.appointmentType?.coding?.[0]?.code === 'TELEMEDICINE' ? 'telemedicine' : 'in_person',
     reason:          body.description || body.reasonCode?.[0]?.text || null,
     status:          mcStatus,
     priority:        body.priority === 1 ? 'emergency' : body.priority === 2 ? 'urgent' : 'routine',

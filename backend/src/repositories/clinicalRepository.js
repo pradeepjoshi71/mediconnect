@@ -1,4 +1,11 @@
 const db = require("../config/db");
+const {
+  encryptFields,
+  decryptFields,
+  decryptRows,
+  MEDICAL_RECORD_PHI_FIELDS,
+  MEDICAL_RECORD_PHI_FIELDS_CAMEL,
+} = require('../security/fieldCrypto');
 
 async function listMedicalRecordsByPatient(hospitalId, patientId) {
   const result = await db.query(
@@ -31,7 +38,7 @@ async function listMedicalRecordsByPatient(hospitalId, patientId) {
     `,
     [hospitalId, patientId]
   );
-  return result.rows;
+  return decryptRows(result.rows, MEDICAL_RECORD_PHI_FIELDS_CAMEL);
 }
 
 async function listPrescriptionsByRecordIds(hospitalId, recordIds) {
@@ -178,6 +185,15 @@ async function createMedicalRecordWithPrescriptions({
   prescriptions,
 }) {
   return db.withTransaction(async (client) => {
+    // Encrypt PHI before INSERT
+    const enc = encryptFields({
+      chiefComplaint: chiefComplaint || null,
+      diagnosis,
+      clinicalNotes:  clinicalNotes  || null,
+      doctorNotes:    doctorNotes    || null,
+      labSummary:     labSummary     || null,
+    }, MEDICAL_RECORD_PHI_FIELDS_CAMEL);
+
     const recordResult = await client.query(
       `
         INSERT INTO medical_records (
@@ -203,12 +219,12 @@ async function createMedicalRecordWithPrescriptions({
         appointmentId || null,
         doctorId,
         encounterType,
-        chiefComplaint || null,
-        diagnosis,
-        clinicalNotes || null,
-        doctorNotes || null,
+        enc.chiefComplaint,
+        enc.diagnosis,
+        enc.clinicalNotes,
+        enc.doctorNotes,
         vitals || {},
-        labSummary || null,
+        enc.labSummary,
         followUpInDays || null,
       ]
     );
@@ -283,7 +299,7 @@ async function findMedicalRecordById(id, hospitalId) {
     `,
     [id, hospitalId]
   );
-  return result.rows[0] || null;
+  return decryptFields(result.rows[0] || null, MEDICAL_RECORD_PHI_FIELDS_CAMEL);
 }
 
 module.exports = {

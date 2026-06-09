@@ -1,4 +1,11 @@
 const db = require("../config/db");
+const {
+  encryptFields,
+  decryptFields,
+  decryptRows,
+  PATIENT_PII_FIELDS,
+  PATIENT_PII_FIELDS_CAMEL,
+} = require('../security/fieldCrypto');
 
 function mapPatientRow(row) {
   if (!row) return null;
@@ -45,7 +52,7 @@ async function findPatientById(id, hospitalId) {
     `,
     [id, hospitalId]
   );
-  return mapPatientRow(result.rows[0]);
+  return mapPatientRow(decryptFields(result.rows[0], PATIENT_PII_FIELDS_CAMEL));
 }
 
 async function findPatientByUserId(userId, hospitalId) {
@@ -80,7 +87,7 @@ async function findPatientByUserId(userId, hospitalId) {
     `,
     [userId, hospitalId]
   );
-  return mapPatientRow(result.rows[0]);
+  return mapPatientRow(decryptFields(result.rows[0], PATIENT_PII_FIELDS_CAMEL));
 }
 
 async function listPatients(hospitalId, search = "") {
@@ -121,7 +128,7 @@ async function listPatients(hospitalId, search = "") {
     `,
     params
   );
-  return result.rows.map(mapPatientRow);
+  return decryptRows(result.rows, PATIENT_PII_FIELDS_CAMEL).map(mapPatientRow);
 }
 
 async function createPatient(hospitalId, data) {
@@ -139,6 +146,9 @@ async function createPatient(hospitalId, data) {
     const password = data.password || "Password@123";
     const passwordHash = await bcrypt.hash(password, 12);
 
+    // Encrypt PII before INSERT
+    const encryptedPhone = data.phone ? encryptFields({ phone: data.phone }, PATIENT_PII_FIELDS).phone : null;
+
     // Insert user
     const userResult = await client.query(
       `INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone, status)
@@ -150,7 +160,7 @@ async function createPatient(hospitalId, data) {
         fullName,
         data.email,
         passwordHash,
-        data.phone || null
+        encryptedPhone
       ]
     );
     const userId = userResult.rows[0].id;
@@ -163,6 +173,13 @@ async function createPatient(hospitalId, data) {
 
     // Generate MRN
     const mrn = `MRN-P-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // Encrypt PII fields before patient INSERT
+    const enc = encryptFields({
+      emergency_contact_phone: data.emergency_contact_phone || data.emergencyContactPhone || null,
+      address:                 data.address || null,
+      insurance_policy_number: data.insurance_policy_number || data.insurancePolicyNumber || null,
+    }, PATIENT_PII_FIELDS);
 
     // Insert patient profile
     const patientResult = await client.query(
@@ -181,10 +198,10 @@ async function createPatient(hospitalId, data) {
         data.gender || null,
         data.blood_group || data.bloodGroup || null,
         data.emergency_contact_name || data.emergencyContactName || null,
-        data.emergency_contact_phone || data.emergencyContactPhone || null,
-        data.address || null,
+        enc.emergency_contact_phone,
+        enc.address,
         data.insurance_provider || data.insuranceProvider || null,
-        data.insurance_policy_number || data.insurancePolicyNumber || null
+        enc.insurance_policy_number
       ]
     );
 
@@ -206,6 +223,14 @@ async function updatePatient(hospitalId, id, data) {
     const currentStatus = patient.status;
     const fullName = `${data.first_name || data.firstName || ""} ${data.last_name || data.lastName || ""}`.trim();
 
+    // Encrypt PII before UPDATE
+    const encU = encryptFields({
+      phone:                   data.phone || null,
+      emergency_contact_phone: data.emergency_contact_phone || data.emergencyContactPhone || null,
+      address:                 data.address || null,
+      insurance_policy_number: data.insurance_policy_number || data.insurancePolicyNumber || null,
+    }, PATIENT_PII_FIELDS);
+
     // Update user
     await client.query(
       `UPDATE users
@@ -214,7 +239,7 @@ async function updatePatient(hospitalId, id, data) {
       [
         fullName,
         data.email,
-        data.phone || null,
+        encU.phone,
         data.status || currentStatus,
         userId
       ]
@@ -231,10 +256,10 @@ async function updatePatient(hospitalId, id, data) {
         data.gender || null,
         data.blood_group || data.bloodGroup || null,
         data.emergency_contact_name || data.emergencyContactName || null,
-        data.emergency_contact_phone || data.emergencyContactPhone || null,
-        data.address || null,
+        encU.emergency_contact_phone,
+        encU.address,
         data.insurance_provider || data.insuranceProvider || null,
-        data.insurance_policy_number || data.insurancePolicyNumber || null,
+        encU.insurance_policy_number,
         id
       ]
     );

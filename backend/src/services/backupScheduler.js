@@ -26,6 +26,7 @@ const util = require('util');
 
 const db = require('../config/db');
 const minioService = require('./minioService');
+const firebaseService = require('./firebaseService');
 const logger = require('../utils/logger');
 
 const execFileAsync = util.promisify(execFile);
@@ -51,6 +52,12 @@ const timers = {};
 
 function nextDailyRun(cronExpression) {
   const parts = (cronExpression || '0 2 * * *').trim().split(/\s+/);
+  if (parts[0] && parts[0].startsWith('*/')) {
+    const mins = parseInt(parts[0].replace('*/', ''), 10) || 5;
+    const now = new Date();
+    return new Date(now.getTime() + mins * 60 * 1000);
+  }
+  
   const minute = parseInt(parts[0], 10) || 0;
   const hour   = parseInt(parts[1], 10) || 2;
   const now  = new Date();
@@ -88,6 +95,176 @@ async function updateConfig({ type, status, nextRunAt, retentionDays }) {
     );
   } catch (err) {
     logger.error('BackupScheduler: failed to update scheduler config', { error: err.message });
+  }
+}
+
+// ─── Periodic Job Runners ──────────────────────────────────────────────────────
+
+async function runNotificationJob(opts = {}) {
+  const startedAt = new Date();
+  const triggeredBy = opts.triggeredBy || 'scheduler';
+  try {
+    const queuedRes = await db.query(
+      `SELECT id, user_id, title, body, data
+       FROM notifications
+       WHERE status = 'queued' AND channel = 'push'
+       LIMIT 50`
+    );
+    
+    let processed = 0;
+    for (const row of queuedRes.rows) {
+      try {
+        const fcmResult = await firebaseService.sendToUser({
+          userId: row.user_id,
+          title: row.title,
+          body: row.body,
+          data: row.data
+        });
+        const status = fcmResult && fcmResult.sent > 0 ? 'sent' : 'failed';
+        await db.query(`UPDATE notifications SET status = $1 WHERE id = $2`, [status, row.id]);
+        processed++;
+      } catch (err) {
+        await db.query(`UPDATE notifications SET status = 'failed' WHERE id = $2`, [row.id]);
+      }
+    }
+    
+    const completedAt = new Date();
+    await writeLog({
+      type: 'notification_job',
+      status: 'success',
+      durationMs: completedAt - startedAt,
+      message: `Processed ${processed} queued push notifications successfully.`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: true };
+  } catch (err) {
+    const completedAt = new Date();
+    await writeLog({
+      type: 'notification_job',
+      status: 'failure',
+      durationMs: completedAt - startedAt,
+      errorDetail: err.stack,
+      message: `Notification job failed: ${err.message}`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: false, error: err };
+  }
+}
+
+async function runPushRetryJob(opts = {}) {
+  const startedAt = new Date();
+  const triggeredBy = opts.triggeredBy || 'scheduler';
+  try {
+    const failedRes = await db.query(
+      `SELECT id, user_id, title, body, data
+       FROM notifications
+       WHERE status = 'failed' AND channel = 'push' AND created_at >= now() - interval '24 hours'
+       LIMIT 50`
+    );
+    
+    let retried = 0;
+    let succeeded = 0;
+    for (const row of failedRes.rows) {
+      try {
+        const fcmResult = await firebaseService.sendToUser({
+          userId: row.user_id,
+          title: row.title,
+          body: row.body,
+          data: row.data
+        });
+        if (fcmResult && fcmResult.sent > 0) {
+          await db.query(`UPDATE notifications SET status = 'sent' WHERE id = $1`, [row.id]);
+          succeeded++;
+        }
+        retried++;
+      } catch (err) {
+        // keep failed
+      }
+    }
+    
+    const completedAt = new Date();
+    await writeLog({
+      type: 'push_retry_job',
+      status: 'success',
+      durationMs: completedAt - startedAt,
+      message: `Retried ${retried} failed push notifications. Succeeded: ${succeeded}.`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: true };
+  } catch (err) {
+    const completedAt = new Date();
+    await writeLog({
+      type: 'push_retry_job',
+      status: 'failure',
+      durationMs: completedAt - startedAt,
+      errorDetail: err.stack,
+      message: `Push retry job failed: ${err.message}`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: false, error: err };
+  }
+}
+
+async function runCleanupJob(opts = {}) {
+  const startedAt = new Date();
+  const triggeredBy = opts.triggeredBy || 'scheduler';
+  const retentionDays = opts.retentionDays || 7;
+  try {
+    let prunedFiles = 0;
+    if (BACKUP_DIR && fs.existsSync(BACKUP_DIR)) {
+      const cutoff = Date.now() - retentionDays * 86400 * 1000;
+      const files = fs.readdirSync(BACKUP_DIR);
+      for (const file of files) {
+        if (!file.endsWith('.dump')) continue;
+        const full = path.join(BACKUP_DIR, file);
+        const stat = fs.statSync(full);
+        if (stat.mtime.getTime() < cutoff) {
+          fs.unlinkSync(full);
+          prunedFiles++;
+        }
+      }
+    }
+    
+    const notifyPrune = await db.query(
+      `DELETE FROM notifications WHERE created_at < now() - interval '30 days'`
+    );
+    
+    const logsPrune = await db.query(
+      `DELETE FROM backup_logs WHERE started_at < now() - interval '90 days'`
+    );
+    
+    const completedAt = new Date();
+    await writeLog({
+      type: 'cleanup_job',
+      status: 'success',
+      durationMs: completedAt - startedAt,
+      message: `Cleanup completed. Pruned ${prunedFiles} backup files, ${notifyPrune.rowCount} notifications, and ${logsPrune.rowCount} backup logs.`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: true };
+  } catch (err) {
+    const completedAt = new Date();
+    await writeLog({
+      type: 'cleanup_job',
+      status: 'failure',
+      durationMs: completedAt - startedAt,
+      errorDetail: err.stack,
+      message: `Cleanup job failed: ${err.message}`,
+      triggeredBy,
+      startedAt,
+      completedAt
+    });
+    return { success: false, error: err };
   }
 }
 
@@ -370,7 +547,13 @@ async function scheduleOne(type) {
     });
 
     timers[type] = setTimeout(async () => {
-      const runner = type === 'database' ? runDatabaseBackup : runStorageBackup;
+      let runner;
+      if (type === 'database') runner = runDatabaseBackup;
+      else if (type === 'storage') runner = runStorageBackup;
+      else if (type === 'notification_job') runner = runNotificationJob;
+      else if (type === 'push_retry_job') runner = runPushRetryJob;
+      else if (type === 'cleanup_job') runner = runCleanupJob;
+
       const result = await runner({ retentionDays: config.retention_days });
       const nextRunAfter = nextDailyRun(config.cron_expression);
       await updateConfig({ type, status: result.success ? 'success' : 'failure', nextRunAt: nextRunAfter, retentionDays: config.retention_days });
@@ -385,6 +568,9 @@ function start() {
   setTimeout(() => {
     scheduleOne('database');
     scheduleOne('storage');
+    scheduleOne('notification_job');
+    scheduleOne('push_retry_job');
+    scheduleOne('cleanup_job');
   }, 5000);
   logger.info('BackupScheduler: initialized');
 }
@@ -399,5 +585,8 @@ module.exports = {
   stop,
   runDatabaseBackup,
   runStorageBackup,
+  runNotificationJob,
+  runPushRetryJob,
+  runCleanupJob,
   listAvailableBackups,
 };

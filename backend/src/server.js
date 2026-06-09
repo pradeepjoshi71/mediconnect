@@ -55,3 +55,24 @@ function shutdown(signal) {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT",  () => shutdown("SIGINT"));
+
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection", { reason, promise });
+  if (process.env.SENTRY_DSN) {
+    try {
+      const Sentry = require("@sentry/node");
+      Sentry.captureException(reason);
+    } catch (_) {}
+  }
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception", { error: error.message, stack: error.stack });
+  if (process.env.SENTRY_DSN) {
+    try {
+      const Sentry = require("@sentry/node");
+      Sentry.captureException(error);
+    } catch (_) {}
+  }
+  process.exit(1);
+});

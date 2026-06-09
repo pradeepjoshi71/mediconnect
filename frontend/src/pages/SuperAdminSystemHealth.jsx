@@ -260,12 +260,27 @@ function SchedulerCard({ scheduler, onRunNow, onRetentionChange, running }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className={`grid h-9 w-9 place-items-center rounded-xl ${isDB ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400" : "bg-tealish-50 text-tealish-600 dark:bg-tealish-500/10 dark:text-tealish-400"}`}>
-            {isDB ? <Database className="h-4.5 w-4.5" /> : <HardDrive className="h-4.5 w-4.5" />}
+          <div className={`grid h-9 w-9 place-items-center rounded-xl ${
+            scheduler.backup_type === "database" ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400" :
+            scheduler.backup_type === "storage" ? "bg-tealish-50 text-tealish-600 dark:bg-tealish-500/10 dark:text-tealish-400" :
+            scheduler.backup_type === "notification_job" ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" :
+            scheduler.backup_type === "push_retry_job" ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400" :
+            "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
+          }`}>
+            {scheduler.backup_type === "database" ? <Database className="h-4.5 w-4.5" /> :
+             scheduler.backup_type === "storage" ? <HardDrive className="h-4.5 w-4.5" /> :
+             scheduler.backup_type === "notification_job" ? <Clock className="h-4.5 w-4.5" /> :
+             scheduler.backup_type === "push_retry_job" ? <RefreshCw className="h-4.5 w-4.5" /> :
+             <Archive className="h-4.5 w-4.5" />}
           </div>
           <div>
             <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              {isDB ? "PostgreSQL Backup" : "MinIO Storage Backup"}
+              {scheduler.backup_type === "database" ? "PostgreSQL Backup" :
+               scheduler.backup_type === "storage" ? "MinIO Storage Backup" :
+               scheduler.backup_type === "notification_job" ? "Notification Dispatcher" :
+               scheduler.backup_type === "push_retry_job" ? "Push Notification Retry" :
+               scheduler.backup_type === "cleanup_job" ? "System Database & Files Cleanup" :
+               scheduler.backup_type}
             </div>
             <div className="text-[10px] text-slate-400 font-mono">{scheduler.cron_expression}</div>
           </div>
@@ -342,6 +357,9 @@ function BackupLogsTable({ logs, loading, total, page, onPageChange, logFilter, 
             <option value="">All types</option>
             <option value="database">Database only</option>
             <option value="storage">Storage only</option>
+            <option value="notification_job">Notification Job</option>
+            <option value="push_retry_job">Push Retry Job</option>
+            <option value="cleanup_job">Cleanup Job</option>
           </select>
           <span className="text-[10px] text-slate-400">{total} entries</span>
         </div>
@@ -380,9 +398,17 @@ function BackupLogsTable({ logs, loading, total, page, onPageChange, logFilter, 
               logs.map((log) => (
                 <tr key={log.id} className="border-b border-slate-50 dark:border-slate-800/30 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                      {log.backup_type === "database" ? <Database className="h-3 w-3" /> : <HardDrive className="h-3 w-3" />}
-                      {log.backup_type}
+                    <span className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                      {log.backup_type === "database" ? <Database className="h-3 w-3" /> :
+                       log.backup_type === "storage" ? <HardDrive className="h-3 w-3" /> :
+                       log.backup_type === "notification_job" ? <Clock className="h-3 w-3" /> :
+                       log.backup_type === "push_retry_job" ? <RefreshCw className="h-3 w-3" /> :
+                       <Archive className="h-3 w-3" />}
+                      {log.backup_type === "database" ? "Database Backup" :
+                       log.backup_type === "storage" ? "Storage Backup" :
+                       log.backup_type === "notification_job" ? "Notification Job" :
+                       log.backup_type === "push_retry_job" ? "Push Retry Job" :
+                       log.backup_type === "cleanup_job" ? "Cleanup Job" : log.backup_type}
                     </span>
                   </td>
                   <td className="px-4 py-3"><LogStatusPill status={log.status} /></td>

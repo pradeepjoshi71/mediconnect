@@ -62,6 +62,7 @@ pm2 startup
 ## Ongoing Operations
 
 ### View Status
+
 ```bash
 pm2 status                          # All processes
 pm2 show mediconnect-api            # Detailed info on one process
@@ -69,6 +70,7 @@ pm2 monit                           # Live CPU/memory monitor
 ```
 
 ### Logs
+
 ```bash
 pm2 logs mediconnect-api            # Tail live logs
 pm2 logs mediconnect-api --lines 200  # Last 200 lines
@@ -76,6 +78,7 @@ pm2 flush                           # Clear all log files
 ```
 
 ### Zero-Downtime Reload (code updates)
+
 ```bash
 cd /opt/mediconnect/backend
 git pull
@@ -84,6 +87,7 @@ pm2 reload mediconnect-api          # Rolling reload — no downtime
 ```
 
 ### Restart / Stop
+
 ```bash
 pm2 restart mediconnect-api         # Hard restart
 pm2 stop mediconnect-api            # Stop (keeps in process list)
@@ -109,7 +113,7 @@ The `ecosystem.config.js` sets production env via `env_production`. Critical val
 must also be in `.env` (the `env_file` path in ecosystem.config.js):
 
 | Variable | Purpose | Example |
-|----------|---------|---------|
+| -------- | ------- | ------- |
 | `NODE_ENV` | `production` | `production` |
 | `BACKUP_DIR` | pg_dump output path | `/backups` |
 | `PGPASSWORD` | pg_dump auth | same as `DB_PASSWORD` |
@@ -130,6 +134,7 @@ via the `NODE_APP_INSTANCE === "0"` check in `app.js`. This prevents N duplicate
 scheduler timers when running in cluster mode.
 
 To verify only one scheduler is running:
+
 ```bash
 pm2 logs mediconnect-api | grep "BackupScheduler: initialized"
 # Should appear exactly ONCE across all workers

@@ -652,12 +652,13 @@ async function createInvoiceForAppointment({ appointment, hospitalId, initiatedB
   return payment;
 }
 
-async function handleWebhook(payload, signature) {
+async function handleWebhook(payload, signature, rawBody) {
   if (isRazorpayConfigured) {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || "";
+    const dataToVerify = rawBody ? rawBody.toString("utf8") : JSON.stringify(payload);
     const expectedSignature = crypto
       .createHmac("sha256", webhookSecret)
-      .update(JSON.stringify(payload))
+      .update(dataToVerify)
       .digest("hex");
     if (expectedSignature !== signature) {
       throw new AppError(400, "Invalid webhook signature");

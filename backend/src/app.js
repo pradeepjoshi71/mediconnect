@@ -1,3 +1,12 @@
+const Sentry = require("@sentry/node");
+
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "development",
+  });
+}
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -31,13 +40,16 @@ const hospitalRoutes = require("./routes/hospitalRoutes");
 const storageRoutes = require("./routes/storageRoutes");
 const pushRoutes = require("./routes/pushRoutes");
 const systemHealthRoutes = require("./routes/systemHealthRoutes");
+const betaFeedbackRoutes = require("./routes/betaFeedback");
 const minioService = require("./services/minioService");
 const backupScheduler = require("./services/backupScheduler");
+const dbBackup = require("./jobs/dbBackup");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./utils/swagger");
+const healthRouter = require("./routes/health");
 
 function buildCorsOptions() {
   const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173")
@@ -75,7 +87,13 @@ app.use(
   })
 );
 app.use(cookieParser());
-app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "2mb" }));
+app.use(express.json({
+  limit: process.env.JSON_BODY_LIMIT || "2mb",
+  type: ["application/json", "application/fhir+json"],
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(
   rateLimit({
@@ -86,53 +104,43 @@ app.use(
   })
 );
 
-app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "backend", message: "MediConnect API is running" });
-});
+// Health routes — Postgres + R2 + heap probes (replaces basic stubs)
+app.use('/health',       healthRouter);
+app.use('/api/health',   healthRouter);
+app.use('/api/v1/health', healthRouter);
+app.get('/ping', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "backend" });
-});
-
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "backend" });
-});
-
-app.get("/api/v1/health", (_req, res) => {
-  res.json({ status: "ok", service: "backend" });
-});
-
-app.get("/api/v1/health/ready", async (_req, res) => {
-  let database = { status: "error" };
-  try {
-    await db.query("SELECT 1");
-    database = { status: "ready" };
-  } catch (error) {
-    database = { status: "error", error: error.message };
-  }
-
-  const redis = await pingRedis();
-  const ready = database.status === "ready" && ["ready", "disabled"].includes(redis.status);
-
-  res.status(ready ? 200 : 503).json({
-    status: ready ? "ready" : "degraded",
-    service: "backend",
-    checks: {
-      database,
-      redis,
-    },
-  });
-});
 
 // Provision MinIO buckets (non-blocking — failure does not abort startup)
 minioService.ensureBuckets().catch((err) =>
   logger.error('MinIO: startup bucket provisioning failed', { error: err.message })
 );
 
+// Graceful Redis connection startup validation (non-blocking)
+pingRedis()
+  .then((redisStatus) => {
+    if (redisStatus.enabled) {
+      if (redisStatus.status === "ready") {
+        logger.info("Redis: Startup connection check succeeded");
+      } else {
+        logger.warn("Redis: Startup connection check failed/skipped (Redis is optional)", { 
+          status: redisStatus.status, 
+          error: redisStatus.error 
+        });
+      }
+    } else {
+      logger.info("Redis: Disabled by configuration");
+    }
+  })
+  .catch((err) => {
+    logger.warn("Redis: Graceful startup validation check failed", { error: err.message });
+  });
+
 // Start backup scheduler — only on PM2 cluster instance 0 to avoid N duplicate schedulers.
 // In non-PM2 mode, NODE_APP_INSTANCE is undefined → defaults to "0" → scheduler always starts.
 if ((process.env.NODE_APP_INSTANCE ?? "0") === "0") {
   backupScheduler.start();
+  dbBackup.start(); // Google Drive streaming backup — zero disk, daily 02:00 IST
 }
 
 app.use("/api/v1/auth", authRoutes);
@@ -187,6 +195,10 @@ app.use("/api/push", pushRoutes);
 
 // Phase 7 — Production Hardening
 app.use("/api/v1/system", systemHealthRoutes);
+
+// Beta — in-app bug reporting loop
+app.use("/api/beta-feedback", betaFeedbackRoutes);
+app.use("/api/v1/beta-feedback", betaFeedbackRoutes);
 
 // Phase 6.1 — FHIR R4 Foundation
 app.use("/api/fhir", require("./fhir/routes/fhirRoutes"));
