@@ -36,4 +36,10 @@ router.post('/backup/run', ...superAdminOnly, backupCtrl.triggerManualBackup);
 /** PATCH /api/v1/system/backup/scheduler — Update retention days or enable flag. */
 router.patch('/backup/scheduler', ...superAdminOnly, backupCtrl.updateSchedulerConfig);
 
+/**
+ * POST /api/v1/system/backup/restore — Validate backup + return DBA restore workflow.
+ * Returns the restore command and steps — does NOT auto-execute (safe mode).
+ */
+router.post('/backup/restore', ...superAdminOnly, backupCtrl.restoreBackup);
+
 module.exports = router;

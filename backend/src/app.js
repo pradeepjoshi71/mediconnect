@@ -129,8 +129,11 @@ minioService.ensureBuckets().catch((err) =>
   logger.error('MinIO: startup bucket provisioning failed', { error: err.message })
 );
 
-// Start backup scheduler (non-blocking — runs after 5s to let DB pool warm up)
-backupScheduler.start();
+// Start backup scheduler — only on PM2 cluster instance 0 to avoid N duplicate schedulers.
+// In non-PM2 mode, NODE_APP_INSTANCE is undefined → defaults to "0" → scheduler always starts.
+if ((process.env.NODE_APP_INSTANCE ?? "0") === "0") {
+  backupScheduler.start();
+}
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
@@ -184,6 +187,12 @@ app.use("/api/push", pushRoutes);
 
 // Phase 7 — Production Hardening
 app.use("/api/v1/system", systemHealthRoutes);
+
+// Phase 6.1 — FHIR R4 Foundation
+app.use("/api/fhir", require("./fhir/routes/fhirRoutes"));
+
+// Insurance Claims Module
+app.use("/api/v1/insurance", require("./insurance/routes/insuranceRoutes"));
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

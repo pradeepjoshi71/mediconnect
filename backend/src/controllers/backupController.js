@@ -2,11 +2,12 @@
  * backupController.js
  *
  * Handles all backup-related HTTP endpoints for the super_admin panel:
- *   GET  /api/v1/system/backup/status     (existing — unchanged)
- *   GET  /api/v1/system/backup/logs       NEW — paginated backup log history
- *   GET  /api/v1/system/backup/scheduler  NEW — scheduler config + next run times
- *   POST /api/v1/system/backup/run        NEW — manually trigger a backup
- *   PATCH /api/v1/system/backup/scheduler NEW — update retention / enable flag
+ *   GET  /api/v1/system/backup/status     — WAL archiver + MinIO status
+ *   GET  /api/v1/system/backup/logs       — paginated backup log history
+ *   GET  /api/v1/system/backup/scheduler  — scheduler config + next run times
+ *   POST /api/v1/system/backup/run        — manually trigger a backup
+ *   PATCH /api/v1/system/backup/scheduler — update retention / enable flag
+ *   POST /api/v1/system/backup/restore    — validate + return restore workflow
  */
 
 const db = require('../config/db');
@@ -184,9 +185,151 @@ async function updateSchedulerConfig(req, res, next) {
   }
 }
 
+// ─── POST /api/v1/system/backup/restore ──────────────────────────────────────
+
+/**
+ * Returns a validated restore workflow and restore command for the DBA.
+ *
+ * SAFE MODE: Does NOT auto-execute pg_restore or mc mirror.
+ * Auto-restoring while the app is live risks data corruption.
+ * The returned command must be run in a maintenance window.
+ *
+ * Body: { type: "database" | "storage", backupFile?: string }
+ */
+async function restoreBackup(req, res, next) {
+  try {
+    const { type, backupFile } = req.body;
+
+    if (!type || !['database', 'storage'].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'type must be "database" or "storage"',
+      });
+    }
+
+    const backupDir  = process.env.BACKUP_DIR || '';
+    const dbHost     = process.env.DB_HOST     || 'localhost';
+    const dbPort     = process.env.DB_PORT     || '5432';
+    const dbUser     = process.env.DB_USER     || 'postgres';
+    const dbName     = process.env.DB_NAME     || 'mediconnect';
+    const primaryAlias = process.env.MINIO_PRIMARY_ALIAS || 'mediconnect-primary';
+    const backupAlias  = process.env.MINIO_BACKUP_ALIAS  || 'mediconnect-backup';
+
+    let workflow;
+    let availableBackups = [];
+    let selectedFile = null;
+
+    if (type === 'database') {
+      // List available dump files
+      availableBackups = backupScheduler.listAvailableBackups();
+
+      if (!backupDir) {
+        return res.status(400).json({
+          success: false,
+          message: 'BACKUP_DIR is not configured. Database restore requires a real backup directory.',
+          hint: 'Set BACKUP_DIR environment variable in production.',
+        });
+      }
+
+      if (availableBackups.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No backup files found in BACKUP_DIR. Trigger a backup first.',
+          backupDir,
+        });
+      }
+
+      // Use specified file or latest
+      selectedFile = backupFile
+        ? availableBackups.find(b => b.filename === backupFile)
+        : availableBackups[0];
+
+      if (!selectedFile) {
+        return res.status(404).json({
+          success: false,
+          message: `Backup file not found: ${backupFile}`,
+          available: availableBackups.map(b => b.filename),
+        });
+      }
+
+      workflow = {
+        type: 'database',
+        backupFile: selectedFile.filename,
+        backupPath: selectedFile.path,
+        backupSize: `${(selectedFile.sizeBytes / 1024 / 1024).toFixed(2)} MB`,
+        backupCreatedAt: selectedFile.createdAt,
+        requiresDowntime: true,
+        steps: [
+          '1. Schedule a maintenance window (application must be stopped).',
+          '2. Stop the application: docker-compose stop backend  OR  pm2 stop mediconnect-api',
+          `3. Run: PGPASSWORD=$DB_PASSWORD pg_restore --clean --if-exists -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} ${selectedFile.path}`,
+          '4. Verify restore: psql -c "SELECT COUNT(*) FROM users" mediconnect',
+          '5. Restart the application: docker-compose start backend  OR  pm2 restart mediconnect-api',
+          '6. Verify application health: GET /api/v1/health/ready',
+        ],
+        restoreCommand: `PGPASSWORD=$DB_PASSWORD pg_restore --clean --if-exists -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} ${selectedFile.path}`,
+        verifyCommand: `psql -h ${dbHost} -p ${dbPort} -U ${dbUser} -d ${dbName} -c "SELECT COUNT(*) FROM users, patients, doctors"`,
+      };
+    } else {
+      // Storage restore via mc mirror (reverse direction)
+      if (!backupAlias) {
+        return res.status(400).json({
+          success: false,
+          message: 'MINIO_BACKUP_ALIAS is not configured. Storage restore requires MinIO backup instance.',
+          hint: 'Set MINIO_BACKUP_ALIAS and MINIO_PRIMARY_ALIAS in production.',
+        });
+      }
+
+      workflow = {
+        type: 'storage',
+        requiresDowntime: false,
+        steps: [
+          `1. Verify backup MinIO is accessible: mc ls ${backupAlias}/`,
+          `2. Mirror from backup back to primary: mc mirror --overwrite ${backupAlias}/ ${primaryAlias}/`,
+          '3. Verify bucket contents: mc ls mediconnect-primary/ --recursive | head -20',
+          '4. Application file access should resume automatically (no restart needed).',
+        ],
+        restoreCommand: `mc mirror --overwrite ${backupAlias}/ ${primaryAlias}/`,
+        verifyCommand:  `mc ls ${primaryAlias}/ --recursive --json | wc -l`,
+      };
+    }
+
+    // Log the restore request (audit trail)
+    try {
+      await db.query(
+        `INSERT INTO backup_logs
+           (backup_type, status, retention_days, message, triggered_by, started_at, completed_at)
+         VALUES ($1, 'info', 7, $2, 'restore_request', now(), now())`,
+        [
+          type,
+          `Restore workflow requested by user ${req.user?.id} (${req.user?.email}). File: ${selectedFile?.filename || 'N/A'}.`,
+        ]
+      );
+    } catch (logErr) {
+      logger.warn('backupController: could not write restore audit log', { error: logErr.message });
+    }
+
+    logger.info('BackupController: restore workflow returned', { type, userId: req.user?.id, file: selectedFile?.filename });
+
+    res.json({
+      success: true,
+      message: 'Restore workflow prepared. Review steps carefully before executing.',
+      availableBackups: type === 'database' ? availableBackups.map(b => ({
+        filename: b.filename,
+        sizeBytes: b.sizeBytes,
+        createdAt: b.createdAt,
+      })) : [],
+      workflow,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getBackupLogs,
   getSchedulerConfig,
   triggerManualBackup,
   updateSchedulerConfig,
+  restoreBackup,
 };

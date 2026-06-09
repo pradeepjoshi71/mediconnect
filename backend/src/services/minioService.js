@@ -6,6 +6,19 @@ let minioClient = null;
 function getMinioClient() {
   if (minioClient) return minioClient;
 
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_TEST_CONTEXT === 'true') {
+    logger.info('MinIO: Using Mock Client for Testing');
+    minioClient = {
+      bucketExists: async () => true,
+      makeBucket: async () => true,
+      putObject: async () => true,
+      presignedGetObject: async (bucket, key) => `http://localhost:9000/${bucket}/${key}?mock=true`,
+      presignedPutObject: async (bucket, key) => `http://localhost:9000/${bucket}/${key}?mock=true`,
+      removeObject: async () => true,
+    };
+    return minioClient;
+  }
+
   const endPoint = process.env.MINIO_ENDPOINT || 'localhost';
   const port = parseInt(process.env.MINIO_PORT || '9000', 10);
   const useSSL = process.env.MINIO_USE_SSL === 'true';
@@ -48,6 +61,7 @@ const DEFAULT_BUCKETS = [
   'profile-images',
   'hospital-logos',
   'doctor-documents',
+  'insurance-claims',
 ];
 
 /**

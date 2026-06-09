@@ -7,3 +7,13 @@ uploads/
 .env
 .env.local
 .env.*.local
+
+# SSL certificates — never commit private keys
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.p12
+
+# Database backup dumps
+*.dump
+/backups/

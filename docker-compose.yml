@@ -12,6 +12,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # Backup volume: pg_dump writes here; WAL archive command copies WAL segments here
+      - backups_data:/backups
     networks:
       - mediconnect-network
     healthcheck:
@@ -19,6 +21,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # ── WAL Archiving ──────────────────────────────────────────────────────────
+    # Enables point-in-time recovery (PITR) by archiving WAL segments to /backups/wal/.
+    # archive_mode=on         — activates WAL archiving
+    # wal_level=replica       — required for logical/streaming replication
+    # archive_command         — copies each WAL segment to the shared backup volume
+    # archive_timeout=300     — force WAL rotation every 5 min (caps data loss window)
+    command: >
+      postgres
+      -c archive_mode=on
+      -c archive_command='mkdir -p /backups/wal && cp %p /backups/wal/%f'
+      -c wal_level=replica
+      -c archive_timeout=300
+      -c max_wal_senders=3
+      -c hot_standby=on
 
   redis:
     image: redis:7-alpine
@@ -50,6 +66,31 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    networks:
+      - mediconnect-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # ── MinIO Backup Instance ───────────────────────────────────────────────────
+  # Separate MinIO instance used as the backup target for mc mirror.
+  # Set MINIO_BACKUP_ALIAS=mediconnect-backup and MINIO_PRIMARY_ALIAS=mediconnect-primary
+  # in .env to enable real mc mirror replication from backupScheduler.js.
+  minio-backup:
+    image: minio/minio:latest
+    container_name: mediconnect-minio-backup
+    restart: always
+    command: server /data --console-address ":9003"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_BACKUP_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_BACKUP_SECRET_KEY:-minioadmin}
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    volumes:
+      - minio_backup_data:/data
     networks:
       - mediconnect-network
     healthcheck:
@@ -104,10 +145,19 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      # ── Production Backup ─────────────────────────────────────────────────────
+      BACKUP_DIR: /backups
+      PGPASSWORD: ${DB_PASSWORD}
+      # mc mirror config — set these to enable real MinIO replication
+      MINIO_PRIMARY_ALIAS: ${MINIO_PRIMARY_ALIAS:-mediconnect-primary}
+      MINIO_BACKUP_ALIAS: ${MINIO_BACKUP_ALIAS:-}
     ports:
       - "5000:5000"
     volumes:
       - uploads_data:${UPLOADS_DIR}
+      # Backup volume shared with postgres so backend can write pg_dump files
+      # that pg_restore can later read from the postgres container
+      - backups_data:/backups
     networks:
       - mediconnect-network
     healthcheck:
@@ -140,8 +190,11 @@ services:
     restart: always
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL certificates — place fullchain.pem and privkey.pem in ./nginx/ssl/
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       frontend:
         condition: service_healthy
@@ -155,6 +208,9 @@ volumes:
   uploads_data:
   redis_data:
   minio_data:
+  # Shared backup volume: postgres writes WAL + dump files; backend reads them via pg_dump
+  backups_data:
+  minio_backup_data:
 
 networks:
   mediconnect-network:
