@@ -59,6 +59,8 @@ function buildNavItems(role, path = "") {
       { to: "/admin/billing", label: "Billing", icon: CreditCard },
       { to: "/admin/lab", label: "Lab", icon: Beaker },
       { to: "/admin/reports", label: "Reports", icon: TrendingUp },
+      { to: "/admin/business", label: "Business", icon: DollarSign },
+      { to: "/admin/inventory", label: "Inventory", icon: Package },
       { to: "/admin/subscription", label: "Subscription", icon: Layers },
       { to: "/admin/branding", label: "Branding", icon: Palette },
       { to: "/admin/settings", label: "Settings", icon: Settings },

@@ -46,6 +46,8 @@ import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
 import AdminSubscription from "./pages/AdminSubscription";
 import AdminBranding from "./pages/AdminBranding";
+import BusinessDashboard from "./pages/BusinessDashboard";
+import InventoryDashboard from "./pages/InventoryDashboard";
 import { BrandingProvider } from "./contexts/BrandingContext";
 
 // Doctor Pages
@@ -186,6 +188,8 @@ export default function App() {
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/subscription" element={<AdminSubscription />} />
               <Route path="/admin/branding" element={<AdminBranding />} />
+              <Route path="/admin/business" element={<BusinessDashboard />} />
+              <Route path="/admin/inventory" element={<InventoryDashboard />} />
             </Route>
           </Route>
         </Route>

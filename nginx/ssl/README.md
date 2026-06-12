@@ -4,10 +4,10 @@ Place your SSL certificates in this directory before running `docker-compose up`
 
 ## Required Files
 
-| File | Description |
-|------|-------------|
-| `fullchain.pem` | Full certificate chain (server cert + intermediates) |
-| `privkey.pem`   | Private key (keep secret — never commit to git) |
+| File             | Description                                              |
+| ---------------- | -------------------------------------------------------- |
+| `fullchain.pem`  | Full certificate chain (server cert + intermediates)     |
+| `privkey.pem`    | Private key (keep secret — never commit to git)          |
 
 ---
 
@@ -63,7 +63,7 @@ If your deployment uses AWS ALB, GCP Load Balancer, or Cloudflare:
 
 ## Security Notes
 
-```
+```text
 nginx/ssl/
   ├── fullchain.pem   ← safe to back up, not secret
   └── privkey.pem     ← SECRET — add to .gitignore, restrict permissions

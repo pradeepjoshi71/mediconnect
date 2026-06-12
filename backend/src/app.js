@@ -41,6 +41,8 @@ const storageRoutes = require("./routes/storageRoutes");
 const pushRoutes = require("./routes/pushRoutes");
 const systemHealthRoutes = require("./routes/systemHealthRoutes");
 const betaFeedbackRoutes = require("./routes/betaFeedback");
+const businessRoutes = require("./routes/businessRoutes");
+const inventoryRoutes = require("./routes/inventoryRoutes");
 const minioService = require("./services/minioService");
 const backupScheduler = require("./services/backupScheduler");
 const dbBackup = require("./jobs/dbBackup");
@@ -161,6 +163,7 @@ app.use("/api/v1/telemedicine", telemedicineRoutes);
 app.use("/api/doctors", doctorRoutes);
 app.use("/api/admin", adminDashboardRoutes);
 app.use("/api/v1/admin", adminDashboardRoutes);
+app.use("/api/v1/business", businessRoutes);
 
 // Phase 2 API Mounts
 app.use("/api/patients", patientRoutes);
@@ -179,6 +182,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/lab-tests", labTestsRouter);
 app.use("/api/lab-orders", labOrdersRouter);
 app.use("/api/lab-reports", labReportsRouter);
+app.use("/api/v1/inventory", inventoryRoutes);
 
 // Phase 5 API Mounts
 app.use("/api/medicines", medicineRoutes);
