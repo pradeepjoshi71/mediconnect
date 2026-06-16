@@ -1,12 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const authMiddleware = require("../middlewares/authMiddleware");
-const roleMiddleware = require("../middlewares/roleMiddleware");
+const permissionMiddleware = require("../middlewares/permissionMiddleware");
 const inventoryController = require("../controllers/inventoryController");
 
-// Restrict all inventory operational routes to admin roles
+// Restrict all inventory operational routes using manage_inventory permission
 router.use(authMiddleware);
-router.use(roleMiddleware("admin", "hospital_admin", "super_admin"));
+router.use(permissionMiddleware("manage_inventory"));
 
 router.get("/items", inventoryController.listItems);
 router.post("/items", inventoryController.createItem);

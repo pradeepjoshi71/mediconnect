@@ -1,26 +1,22 @@
 const express = require("express");
 const paymentController = require("../controllers/paymentController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const roleMiddleware = require("../middlewares/roleMiddleware");
+const permissionMiddleware = require("../middlewares/permissionMiddleware");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 const paymentService = require("../services/paymentService");
 
 const router = express.Router();
 
-const allBillingRoles = ["patient", "super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"];
-const readBillingRoles = ["patient", "super_admin", "hospital_admin", "admin", "billing_executive", "doctor", "receptionist"];
-const adminBillingRoles = ["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"];
-
 // ─── Online Payment Endpoints ───────────────────────────────────────────────
-router.post("/create-order", authMiddleware, roleMiddleware(...allBillingRoles), paymentController.createOrder);
-router.post("/verify", authMiddleware, roleMiddleware(...allBillingRoles), paymentController.verifyPayment);
-router.post("/refund", authMiddleware, roleMiddleware("super_admin", "hospital_admin", "admin", "billing_executive"), paymentController.refundPayment);
+router.post("/create-order", authMiddleware, permissionMiddleware("record_payments"), paymentController.createOrder);
+router.post("/verify", authMiddleware, permissionMiddleware("record_payments"), paymentController.verifyPayment);
+router.post("/refund", authMiddleware, permissionMiddleware("manage_billing"), paymentController.refundPayment);
 
 // ─── Offline Payment Recording ──────────────────────────────────────────────
-router.post("/record-offline", authMiddleware, roleMiddleware(...adminBillingRoles), paymentController.recordOfflinePayment);
+router.post("/record-offline", authMiddleware, permissionMiddleware("manage_billing"), paymentController.recordOfflinePayment);
 
 // ─── History & Reports ──────────────────────────────────────────────────────
-router.get("/history", authMiddleware, roleMiddleware(...readBillingRoles), paymentController.paymentHistory);
+router.get("/history", authMiddleware, permissionMiddleware("record_payments"), paymentController.paymentHistory);
 
 // ─── Webhook (no auth — Razorpay calls this directly) ──────────────────────
 router.post(
@@ -33,19 +29,25 @@ router.post(
 );
 
 // ─── Legacy Backward-Compatibility Endpoints ────────────────────────────────
-router.get("/", authMiddleware, paymentController.listPayments);
+// GET / — kept for backward compat; requires same permission as /history
+router.get("/", authMiddleware, permissionMiddleware("record_payments"), paymentController.listPayments);
 router.post(
   "/:id/checkout",
   authMiddleware,
-  roleMiddleware("patient", "admin", "receptionist"),
+  permissionMiddleware("record_payments"),
   paymentController.createCheckout
 );
 router.patch(
   "/:id/status",
   authMiddleware,
-  roleMiddleware("patient", "admin", "receptionist"),
+  permissionMiddleware("manage_billing"),
   paymentController.updatePaymentStatus
 );
-router.get("/:id/invoice-pdf", authMiddleware, paymentController.downloadInvoicePdf);
+router.get(
+  "/:id/invoice-pdf",
+  authMiddleware,
+  permissionMiddleware("view_records"),
+  paymentController.downloadInvoicePdf
+);
 
 module.exports = router;

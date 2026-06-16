@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import RoleRoute from "./components/RoleRoute";
+import PermissionRoute from "./components/PermissionRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import BetaFeedbackWidget from "./components/BetaFeedbackWidget";
 import AppShell from "./layouts/AppShell";
@@ -46,6 +47,7 @@ import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
 import AdminSubscription from "./pages/AdminSubscription";
 import AdminBranding from "./pages/AdminBranding";
+import AdminDepartments from "./pages/AdminDepartments";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import InventoryDashboard from "./pages/InventoryDashboard";
 import { BrandingProvider } from "./contexts/BrandingContext";
@@ -104,6 +106,16 @@ function BootScreen() {
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
+
+  useEffect(() => {
+    function handleAuthExpired() {
+      window.location.href = "/login";
+    }
+    window.addEventListener("mc-auth-expired", handleAuthExpired);
+    return () => {
+      window.removeEventListener("mc-auth-expired", handleAuthExpired);
+    };
+  }, []);
 
   useEffect(() => {
     applyTheme(getTheme());
@@ -173,23 +185,54 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Hospital Admin Portal */}
+        {/* Hospital Admin / Staff Portal */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<RoleRoute allowedRoles={["admin", "hospital_admin"]} />}>
+          <Route element={<RoleRoute allowedRoles={["admin", "hospital_admin", "super_admin", "patient_manager", "lab_admin", "report_admin", "billing_admin", "inventory_admin", "receptionist", "lab_technician", "pharmacist"]} />}>
             <Route element={<AppShell />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin/doctors" element={<AdminDoctors />} />
-              <Route path="/admin/patients" element={<AdminPatients />} />
-              <Route path="/admin/appointments" element={<AppointmentsPage />} />
-              <Route path="/admin/billing" element={<BillingPage />} />
-              <Route path="/admin/lab" element={<AdminLab />} />
-              <Route path="/admin/reports" element={<AdminReports />} />
-              <Route path="/admin/settings" element={<AdminSettings />} />
-              <Route path="/admin/subscription" element={<AdminSubscription />} />
-              <Route path="/admin/branding" element={<AdminBranding />} />
-              <Route path="/admin/business" element={<BusinessDashboard />} />
-              <Route path="/admin/inventory" element={<InventoryDashboard />} />
+              
+              <Route element={<PermissionRoute requiredPermission="manage_doctors" />}>
+                <Route path="/admin/doctors" element={<AdminDoctors />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="view_patients" />}>
+                <Route path="/admin/patients" element={<AdminPatients />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="view_appointments" />}>
+                <Route path="/admin/appointments" element={<AppointmentsPage />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="record_payments" />}>
+                <Route path="/admin/billing" element={<BillingPage />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="manage_lab_orders" />}>
+                <Route path="/admin/lab" element={<AdminLab />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="view_reports" />}>
+                <Route path="/admin/reports" element={<AdminReports />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="manage_settings" />}>
+                <Route path="/admin/settings" element={<AdminSettings />} />
+                <Route path="/admin/subscription" element={<AdminSubscription />} />
+                <Route path="/admin/branding" element={<AdminBranding />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="view_analytics" />}>
+                <Route path="/admin/business" element={<BusinessDashboard />} />
+              </Route>
+              
+              <Route element={<PermissionRoute requiredPermission="manage_inventory" />}>
+                <Route path="/admin/inventory" element={<InventoryDashboard />} />
+              </Route>
+
+              <Route element={<PermissionRoute requiredPermission="department.read" />}>
+                <Route path="/admin/departments" element={<AdminDepartments />} />
+              </Route>
             </Route>
           </Route>
         </Route>
@@ -300,9 +343,9 @@ export default function App() {
             <Route
               path="/admin/billing"
               element={
-                <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"]}>
+                <PermissionRoute requiredPermission="record_payments">
                   <BillingPage />
-                </RoleRoute>
+                </PermissionRoute>
               }
             />
             <Route
@@ -364,9 +407,9 @@ export default function App() {
             <Route
               path="/admin/audit-logs"
               element={
-                <RoleRoute allowedRoles={["super_admin", "hospital_admin", "admin"]}>
+                <PermissionRoute requiredPermission="view_analytics">
                   <AuditLogs />
-                </RoleRoute>
+                </PermissionRoute>
               }
             />
           </Route>

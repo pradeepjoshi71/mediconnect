@@ -95,17 +95,44 @@ async function login(email, password, { hospitalCode, auditContext } = {}) {
     throw new AppError(401, "Invalid credentials");
   }
 
-  const matches = await bcrypt.compare(password, user.passwordHash);
-  if (!matches) {
+  // Check if account is locked out
+  if (user.lockedUntilAt && new Date(user.lockedUntilAt) > new Date()) {
+    const remainingMs = new Date(user.lockedUntilAt) - new Date();
+    const remainingMins = Math.ceil(remainingMs / (1000 * 60));
     await auditService.recordAuditEvent({
       user,
       hospitalId: hospital.id,
       action: "auth.login.failure",
       entityType: "user",
       entityId: user.id,
-      metadata: { email, reason: "invalid_password" },
+      metadata: { email, reason: "account_locked", remainingMins },
       context: auditContext,
     });
+    throw new AppError(423, `Account is temporarily locked. Try again in ${remainingMins} minutes.`);
+  }
+
+  const matches = await bcrypt.compare(password, user.passwordHash);
+  if (!matches) {
+    const lockoutInfo = await authRepository.incrementFailedLogin(user.id);
+    const isLocked = lockoutInfo.lockedUntilAt && new Date(lockoutInfo.lockedUntilAt) > new Date();
+
+    await auditService.recordAuditEvent({
+      user,
+      hospitalId: hospital.id,
+      action: "auth.login.failure",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { 
+        email, 
+        reason: isLocked ? "account_locked" : "invalid_password",
+        failedAttempts: lockoutInfo.failedLoginAttempts
+      },
+      context: auditContext,
+    });
+
+    if (isLocked) {
+      throw new AppError(423, "Account is temporarily locked due to too many failed attempts. Try again in 15 minutes.");
+    }
     throw new AppError(401, "Invalid credentials");
   }
 
@@ -136,6 +163,7 @@ async function login(email, password, { hospitalCode, auditContext } = {}) {
   });
 
   await Promise.all([
+    authRepository.resetFailedLogin(user.id),
     authRepository.insertRefreshToken({
       hospitalId: user.hospitalId,
       userId: user.id,
@@ -156,10 +184,13 @@ async function login(email, password, { hospitalCode, auditContext } = {}) {
     }),
   ]);
 
+  const sanitized = sanitizeUser(user);
+  sanitized.permissions = await authRepository.getUserPermissions(user.id);
+
   return {
     accessToken,
     refreshToken,
-    user: sanitizeUser(user),
+    user: sanitized,
   };
 }
 
@@ -190,6 +221,25 @@ async function refresh(refreshToken) {
     throw new AppError(403, "Account is disabled or inactive");
   }
 
+  const newRefreshToken = signRefreshToken({
+    userId: user.id,
+    hospitalId: user.hospitalId,
+    hospitalCode: user.hospitalCode,
+  });
+
+  await Promise.all([
+    authRepository.revokeRefreshTokenByHash(hashRefreshToken(refreshToken)),
+    authRepository.insertRefreshToken({
+      hospitalId: user.hospitalId,
+      userId: user.id,
+      tokenHash: hashRefreshToken(newRefreshToken),
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    }),
+  ]);
+
+  const sanitized = sanitizeUser(user);
+  sanitized.permissions = await authRepository.getUserPermissions(user.id);
+
   return {
     accessToken: signAccessToken({
       userId: user.id,
@@ -198,7 +248,8 @@ async function refresh(refreshToken) {
       hospitalId: user.hospitalId,
       hospitalCode: user.hospitalCode,
     }),
-    user: sanitizeUser(user),
+    refreshToken: newRefreshToken,
+    user: sanitized,
   };
 }
 
@@ -233,13 +284,88 @@ async function logout(refreshToken, { user, auditContext } = {}) {
     });
   }
 }
-
 async function getCurrentUser(userId) {
   const user = await authRepository.findUserById(userId);
   if (!user) {
     throw new AppError(404, "User not found");
   }
-  return sanitizeUser(user);
+  const sanitized = sanitizeUser(user);
+  sanitized.permissions = await authRepository.getUserPermissions(userId);
+  return sanitized;
+}
+
+const crypto = require("crypto");
+
+async function forgotPassword(email, hospitalCode, auditContext) {
+  const hospital = await hospitalService.resolveHospital(hospitalCode);
+  const user = await authRepository.findUserByEmail(email, hospital.id);
+  if (!user) {
+    // Return standard message to prevent user enumeration
+    return { message: "If an account exists, a password reset token has been generated." };
+  }
+
+  // Generate 32-byte secure random token
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 15); // 15 minutes
+
+  await authRepository.createPasswordReset({
+    hospitalId: hospital.id,
+    userId: user.id,
+    tokenHash,
+    expiresAt,
+  });
+
+  await auditService.recordAuditEvent({
+    user,
+    action: "auth.password.reset_request",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { email: user.email },
+    context: auditContext,
+  });
+
+  return {
+    message: "Password reset token generated",
+    token: rawToken,
+  };
+}
+
+async function resetPassword(token, newPassword, hospitalCode, auditContext) {
+  const hospital = await hospitalService.resolveHospital(hospitalCode);
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const resetRecord = await authRepository.findActivePasswordResetByHash(tokenHash);
+  if (!resetRecord) {
+    throw new AppError(400, "Password reset token is invalid or expired");
+  }
+
+  if (Number(resetRecord.hospital_id) !== Number(hospital.id)) {
+    throw new AppError(400, "Invalid tenant context for password reset");
+  }
+
+  const user = await authRepository.findUserById(resetRecord.user_id);
+  if (!user || user.status !== "active") {
+    throw new AppError(400, "User account is inactive or not found");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  await Promise.all([
+    authRepository.updatePasswordHash(user.id, passwordHash),
+    authRepository.revokeAllUserRefreshTokens(user.id),
+    authRepository.markPasswordResetAsUsed(resetRecord.id),
+    auditService.recordAuditEvent({
+      user,
+      action: "auth.password.reset_success",
+      entityType: "user",
+      entityId: user.id,
+      metadata: { email: user.email },
+      context: auditContext,
+    }),
+  ]);
+
+  return { message: "Password reset successfully. All active sessions have been logged out." };
 }
 
 module.exports = {
@@ -248,4 +374,6 @@ module.exports = {
   refresh,
   logout,
   getCurrentUser,
+  forgotPassword,
+  resetPassword,
 };

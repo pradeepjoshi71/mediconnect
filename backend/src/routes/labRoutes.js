@@ -1,29 +1,47 @@
 const express = require("express");
 const labController = require("../controllers/labController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const roleMiddleware = require("../middlewares/roleMiddleware");
+const permissionMiddleware = require("../middlewares/permissionMiddleware");
 
 const labTestsRouter = express.Router();
 const labOrdersRouter = express.Router();
 const labReportsRouter = express.Router();
 
-const allRoles = ["patient", "doctor", "lab_technician", "admin", "super_admin", "hospital_admin", "receptionist"];
-const clinicianOrAdmin = ["doctor", "admin", "super_admin", "hospital_admin"];
-const labStaffOrAdmin = ["lab_technician", "admin", "super_admin", "hospital_admin"];
-const adminRoles = ["admin", "super_admin", "hospital_admin"];
+// Custom authorization helpers for lab routes
+const requireRecordsOrReports = (req, res, next) => {
+  const permissions = req.user.permissions || [];
+  const isAuthorized = permissions.includes("view_records") || 
+                       permissions.includes("view_reports") || 
+                       ["super_admin", "hospital_admin", "admin"].includes(req.user.role);
+  if (!isAuthorized) {
+    return res.status(403).json({ message: "Forbidden: insufficient permissions", requestId: req.requestId });
+  }
+  next();
+};
+
+const requireOrdersOrResults = (req, res, next) => {
+  const permissions = req.user.permissions || [];
+  const isAuthorized = permissions.includes("manage_lab_orders") || 
+                       permissions.includes("manage_lab_results") || 
+                       ["super_admin", "hospital_admin", "admin"].includes(req.user.role);
+  if (!isAuthorized) {
+    return res.status(403).json({ message: "Forbidden: insufficient permissions", requestId: req.requestId });
+  }
+  next();
+};
 
 // ─── Lab Tests Catalog Route ──────────────────────────────────────────────────
 labTestsRouter.get(
   "/",
   authMiddleware,
-  roleMiddleware(...allRoles),
+  requireRecordsOrReports,
   labController.listLabTests
 );
 
 labTestsRouter.post(
   "/",
   authMiddleware,
-  roleMiddleware(...adminRoles),
+  permissionMiddleware("manage_settings"),
   labController.createLabTest
 );
 
@@ -31,28 +49,28 @@ labTestsRouter.post(
 labOrdersRouter.get(
   "/",
   authMiddleware,
-  roleMiddleware(...allRoles),
+  requireOrdersOrResults,
   labController.listLabOrders
 );
 
 labOrdersRouter.post(
   "/",
   authMiddleware,
-  roleMiddleware(...clinicianOrAdmin),
+  permissionMiddleware("manage_lab_orders"),
   labController.createLabOrder
 );
 
 labOrdersRouter.patch(
   "/:id/status",
   authMiddleware,
-  roleMiddleware(...labStaffOrAdmin, "receptionist"),
+  permissionMiddleware("manage_lab_results"),
   labController.updateLabOrderStatus
 );
 
 labOrdersRouter.get(
   "/revenue",
   authMiddleware,
-  roleMiddleware(...adminRoles),
+  permissionMiddleware("view_analytics"),
   labController.getRevenueReports
 );
 
@@ -63,7 +81,7 @@ const upload = createUploadMiddleware();
 labReportsRouter.post(
   "/",
   authMiddleware,
-  roleMiddleware(...labStaffOrAdmin),
+  permissionMiddleware("manage_lab_results"),
   upload.single("file"),
   labController.createLabReport
 );
@@ -71,21 +89,21 @@ labReportsRouter.post(
 labReportsRouter.get(
   "/download/:id",
   authMiddleware,
-  roleMiddleware(...allRoles),
+  requireRecordsOrReports,
   labController.downloadLabReport
 );
 
 labReportsRouter.get(
   "/:patientId",
   authMiddleware,
-  roleMiddleware(...allRoles),
+  requireRecordsOrReports,
   labController.listLabReports
 );
 
 labReportsRouter.get(
   "/",
   authMiddleware,
-  roleMiddleware(...allRoles),
+  requireRecordsOrReports,
   labController.listLabReports
 );
 

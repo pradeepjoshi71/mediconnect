@@ -1,16 +1,12 @@
-const ACCESS_KEY = "mc_access";
+let inMemoryAccessToken = null;
 const USER_KEY = "mc_user";
 
 export function getAccessToken() {
-  return localStorage.getItem(ACCESS_KEY);
+  return inMemoryAccessToken;
 }
 
 export function setAccessToken(token) {
-  if (!token) {
-    localStorage.removeItem(ACCESS_KEY);
-    return;
-  }
-  localStorage.setItem(ACCESS_KEY, token);
+  inMemoryAccessToken = token || null;
 }
 
 export function getUser() {
@@ -32,7 +28,7 @@ export function setUser(user) {
 }
 
 export function clearSession() {
-  localStorage.removeItem(ACCESS_KEY);
+  inMemoryAccessToken = null;
   localStorage.removeItem(USER_KEY);
 }
 

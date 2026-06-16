@@ -18,10 +18,13 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ message: "Unauthorized", requestId: req.requestId });
     }
 
+    const permissions = await authRepository.getUserPermissions(user.id);
+
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
+      permissions,
       hospitalId: user.hospitalId,
       hospitalCode: user.hospitalCode,
       hospitalSlug: user.hospitalSlug,

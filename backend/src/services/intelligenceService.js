@@ -2,6 +2,7 @@ const doctorRepository = require("../repositories/doctorRepository");
 const intelligenceRepository = require("../repositories/intelligenceRepository");
 const { AppError } = require("../utils/http");
 const auditService = require("./auditService");
+const { hasPermission } = require("../utils/rbac");
 
 const specialtyMap = [
   { keywords: ["chest pain", "palpitation", "shortness of breath", "hypertension"], specialization: "Cardiology" },
@@ -201,7 +202,7 @@ function scoreAppointmentRisk(item) {
 }
 
 async function getPredictiveInsights(user) {
-  if (!["admin", "receptionist"].includes(user.role)) {
+  if (!hasPermission(user, "view_analytics")) {
     throw new AppError(403, "Predictive insights are restricted to hospital operations roles");
   }
 

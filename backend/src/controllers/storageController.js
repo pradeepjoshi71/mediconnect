@@ -36,6 +36,16 @@ async function uploadFile(req, res, next) {
     const file = req.file;
     if (!file) throw new AppError(400, 'No file uploaded');
 
+    const ALLOWED_MIME_TYPES = new Set([
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ]);
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      throw new AppError(400, "Unsupported file type");
+    }
+
     // Role-based upload validation
     if (req.user.role === 'patient') {
       const allowedPatientTypes = ['patient_document', 'profile_image'];

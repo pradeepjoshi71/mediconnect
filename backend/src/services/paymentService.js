@@ -6,6 +6,7 @@ const patientRepository = require("../repositories/patientRepository");
 const auditService = require("./auditService");
 const { buildPdfBuffer } = require("../utils/pdf");
 const { AppError } = require("../utils/http");
+const { hasPermission } = require("../utils/rbac");
 
 const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
 const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -393,7 +394,7 @@ async function recordOfflinePayment(user, payload, context) {
 }
 
 async function refundPayment(user, { paymentId, amount }, context) {
-  if (!["admin", "super_admin", "hospital_admin", "billing_executive"].includes(user.role)) {
+  if (!hasPermission(user, "manage_billing")) {
     throw new AppError(403, "Forbidden: insufficient permissions to refund payments");
   }
 

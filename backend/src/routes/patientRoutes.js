@@ -1,35 +1,35 @@
 const express = require("express");
 const patientController = require("../controllers/patientController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const roleMiddleware = require("../middlewares/roleMiddleware");
+const permissionMiddleware = require("../middlewares/permissionMiddleware");
 
 const router = express.Router();
 
 router.get(
   "/",
   authMiddleware,
-  roleMiddleware("doctor", "admin", "receptionist", "super_admin", "hospital_admin"),
+  permissionMiddleware("view_patients"),
   patientController.listPatients
 );
 
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("admin", "super_admin", "hospital_admin", "receptionist"),
+  permissionMiddleware("register_patients"),
   patientController.createPatient
 );
 
 router.put(
   "/:id",
   authMiddleware,
-  roleMiddleware("admin", "super_admin", "hospital_admin", "doctor", "receptionist"),
+  permissionMiddleware("register_patients"),
   patientController.updatePatient
 );
 
 router.get(
   "/:id",
   authMiddleware,
-  roleMiddleware("patient", "doctor", "admin", "super_admin", "hospital_admin"),
+  permissionMiddleware("view_records"),
   patientController.getPatientSummary
 );
 

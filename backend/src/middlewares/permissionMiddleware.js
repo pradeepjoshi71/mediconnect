@@ -7,8 +7,8 @@ function permissionMiddleware(...requiredPermissions) {
     }
 
     try {
-      // Fetch user permissions dynamically from the database
-      const permissions = await authRepository.getUserPermissions(req.user.id);
+      // Use pre-fetched user permissions from req.user
+      const permissions = req.user.permissions || [];
       
       // Check if user has all of the required permissions
       const hasPermission = requiredPermissions.every((perm) => permissions.includes(perm));

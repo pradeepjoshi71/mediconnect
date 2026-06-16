@@ -55,9 +55,10 @@ function errorMiddleware(error, req, res, _next) {
     } catch (_) {}
   }
 
+  const isProd = process.env.NODE_ENV === "production";
   return res.status(500).json({
-    error: error.message,
-    stack: process.env.NODE_ENV !== "production" ? error.stack : undefined
+    error: isProd ? "Internal Server Error" : error.message,
+    stack: !isProd ? error.stack : undefined
   });
 }
 

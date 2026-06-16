@@ -3,13 +3,14 @@ const patientRepository = require("../repositories/patientRepository");
 const doctorRepository = require("../repositories/doctorRepository");
 const auditService = require("./auditService");
 const { AppError } = require("../utils/http");
+const { hasPermission } = require("../utils/rbac");
 
 async function listLabTests(user) {
   return labRepository.listLabTests(user.hospitalId);
 }
 
 async function createLabTest(user, data, context) {
-  if (!["admin", "super_admin", "hospital_admin"].includes(user.role)) {
+  if (!hasPermission(user, "manage_settings")) {
     throw new AppError(403, "Forbidden: Only admins can manage the lab test catalog");
   }
 
@@ -68,8 +69,8 @@ async function listLabOrders(user, filters, context) {
 }
 
 async function createLabOrder(user, data, context) {
-  if (!["doctor", "admin", "super_admin", "hospital_admin"].includes(user.role)) {
-    throw new AppError(403, "Forbidden: Only doctors or admins can order lab tests");
+  if (!hasPermission(user, "manage_lab_orders")) {
+    throw new AppError(403, "Forbidden: Only doctors or lab admins can order lab tests");
   }
 
   let doctorId = data.doctorId || data.doctor_id;
@@ -110,8 +111,8 @@ async function createLabOrder(user, data, context) {
 }
 
 async function updateLabOrderStatus(user, id, status, context) {
-  if (!["lab_technician", "admin", "super_admin", "hospital_admin", "receptionist"].includes(user.role)) {
-    throw new AppError(403, "Forbidden: Only lab technicians, receptionists or admins can update order status");
+  if (!hasPermission(user, "manage_lab_results", "manage_lab_orders")) {
+    throw new AppError(403, "Forbidden: Only lab staff or admins can update order status");
   }
 
   const existing = await labRepository.findLabOrderById(id, user.hospitalId);
@@ -137,8 +138,8 @@ async function updateLabOrderStatus(user, id, status, context) {
 }
 
 async function createLabReport(user, data, context) {
-  if (!["lab_technician", "admin", "super_admin", "hospital_admin"].includes(user.role)) {
-    throw new AppError(403, "Forbidden: Only lab technicians or admins can upload reports");
+  if (!hasPermission(user, "manage_lab_results")) {
+    throw new AppError(403, "Forbidden: Only lab staff or admins can upload reports");
   }
 
   const order = await labRepository.findLabOrderById(data.labOrderId || data.lab_order_id, user.hospitalId);
@@ -203,7 +204,7 @@ async function listLabReports(user, patientId, context) {
 }
 
 async function getRevenueByTestType(user, context) {
-  if (!["admin", "super_admin", "hospital_admin"].includes(user.role)) {
+  if (!hasPermission(user, "view_analytics")) {
     throw new AppError(403, "Forbidden: Only admins can view lab revenue statistics");
   }
 

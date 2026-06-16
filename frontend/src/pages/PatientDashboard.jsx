@@ -232,35 +232,53 @@ export default function PatientDashboard() {
               </form>
 
               {symptomResult ? (
-                <div className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                <div className={cn(
+                  "rounded-3xl border p-5 transition-all duration-300",
+                  symptomResult.triage === "EMERGENCY" 
+                    ? "border-rose-200 bg-rose-50/50 dark:border-rose-950/40 dark:bg-rose-950/10"
+                    : "border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30"
+                )}>
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
                       Triage guidance
                     </div>
-                    <Badge tone={statusTone(symptomResult.triage)}>
+                    <Badge tone={symptomResult.triage === "EMERGENCY" ? "rose" : statusTone(symptomResult.triage)}>
                       {symptomResult.triage}
                     </Badge>
                   </div>
-                  <div className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  
+                  <div className="mt-4 text-sm font-bold text-slate-900 dark:text-white leading-snug">
                     {symptomResult.summary}
                   </div>
+                  
                   {symptomResult.redFlags?.length ? (
-                    <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
-                      <div className="flex items-center gap-2 font-semibold">
-                        <AlertCircle className="h-4 w-4" />
-                        Red flags
+                    <div className="mt-4 rounded-2xl bg-rose-50/80 p-4 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-200 border border-rose-100/50 dark:border-rose-950/30">
+                      <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[10px]">
+                        <AlertCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                        Critical Red Flags
                       </div>
-                      <div className="mt-2">{symptomResult.redFlags.join(", ")}</div>
+                      <ul className="mt-2 list-disc pl-4 space-y-1 font-medium">
+                        {symptomResult.redFlags.map((flag, idx) => (
+                          <li key={idx}>{flag}</li>
+                        ))}
+                      </ul>
                     </div>
                   ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {(symptomResult.recommendedSpecializations || []).map((item) => (
-                      <Badge key={item} tone="brand">
-                        {item}
-                      </Badge>
-                    ))}
+                  
+                  <div className="mt-4">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Recommended Specializations
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(symptomResult.recommendedSpecializations || []).map((item) => (
+                        <Badge key={item} tone="brand" className="rounded-lg px-2.5 py-1">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                  <div className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+                  
+                  <div className="mt-4 border-t border-slate-100 dark:border-slate-800/40 pt-3 text-[10px] leading-relaxed text-slate-400 dark:text-slate-500">
                     {symptomResult.disclaimer}
                   </div>
                 </div>

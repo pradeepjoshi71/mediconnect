@@ -2,25 +2,15 @@ const hospitalRepository = require("../repositories/hospitalRepository");
 const { AppError } = require("../utils/http");
 
 async function resolveHospital(code) {
-  if (code) {
-    const hospital = await hospitalRepository.findHospitalByCode(code);
-    if (!hospital) {
-      throw new AppError(404, "Hospital tenant not found");
-    }
-    return hospital;
+  if (!code || !code.trim()) {
+    throw new AppError(400, "Hospital tenant code is required");
   }
 
-  const defaultCode = process.env.DEFAULT_HOSPITAL_CODE;
-  if (defaultCode) {
-    const hospital = await hospitalRepository.findHospitalByCode(defaultCode);
-    if (hospital) return hospital;
+  const hospital = await hospitalRepository.findHospitalByCode(code.trim());
+  if (!hospital) {
+    throw new AppError(404, "Hospital tenant not found");
   }
-
-  const defaultHospital = await hospitalRepository.findDefaultHospital();
-  if (!defaultHospital) {
-    throw new AppError(500, "No hospital tenant is configured");
-  }
-  return defaultHospital;
+  return hospital;
 }
 
 async function getHospitalSummary(user) {

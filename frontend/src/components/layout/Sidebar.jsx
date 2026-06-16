@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   Layers,
   Palette,
-  ShieldAlert
+  ShieldAlert,
+  Package
 } from "lucide-react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { logout } from "../../services/authService";
@@ -36,148 +37,230 @@ import { useBranding } from "../../contexts/BrandingContext";
 const navBase =
   "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200";
 
-function buildNavItems(role, path = "") {
+function buildNavItems(role, path = "", permissions = []) {
   if (path.startsWith("/super-admin")) {
     return [
-      { to: "/super-admin", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/super-admin/hospitals", label: "Hospitals", icon: Building2 },
-      { to: "/super-admin/onboarding", label: "Onboarding", icon: UserPlus },
-      { to: "/super-admin/subscriptions", label: "Subscriptions", icon: CreditCard },
-      { to: "/super-admin/revenue", label: "Revenue", icon: DollarSign },
-      { to: "/super-admin/analytics", label: "Analytics", icon: Activity },
-      { to: "/super-admin/system-health", label: "System Health", icon: ShieldAlert },
-      { to: "/super-admin/support", label: "Support", icon: HelpCircle },
+      {
+        title: "Workspace",
+        items: [
+          { to: "/super-admin", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/super-admin/analytics", label: "Analytics", icon: Activity },
+          { to: "/super-admin/system-health", label: "System Health", icon: ShieldAlert },
+        ],
+      },
+      {
+        title: "Operations",
+        items: [
+          { to: "/super-admin/hospitals", label: "Hospitals", icon: Building2 },
+          { to: "/super-admin/onboarding", label: "Onboarding", icon: UserPlus },
+          { to: "/super-admin/subscriptions", label: "Subscriptions", icon: CreditCard },
+          { to: "/super-admin/revenue", label: "Revenue", icon: DollarSign },
+          { to: "/super-admin/support", label: "Support", icon: HelpCircle },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/admin")) {
+    const allClinical = [
+      { to: "/admin/doctors", label: "Doctors", icon: Stethoscope, permission: "manage_doctors" },
+      { to: "/admin/patients", label: "Patients", icon: UsersRound, permission: "view_patients" },
+      { to: "/admin/appointments", label: "Appointments", icon: CalendarDays, permission: "view_appointments" },
+      { to: "/admin/lab", label: "Lab Management", icon: Beaker, permission: "manage_lab_orders" },
+    ];
+
+    const allOps = [
+      { to: "/admin/billing", label: "Billing", icon: CreditCard, permission: "record_payments" },
+      { to: "/admin/reports", label: "Reports", icon: TrendingUp, permission: "view_reports" },
+      { to: "/admin/business", label: "Business Analytics", icon: DollarSign, permission: "view_analytics" },
+      { to: "/admin/inventory", label: "Inventory", icon: Package, permission: "manage_inventory" },
+      { to: "/admin/departments", label: "Departments", icon: Building2, permission: "department.read" },
+    ];
+
+    const allSystem = [
+      { to: "/admin/subscription", label: "Subscription", icon: Layers, permission: "manage_settings" },
+      { to: "/admin/branding", label: "Branding", icon: Palette, permission: "manage_settings" },
+      { to: "/admin/settings", label: "Settings", icon: Settings, permission: "manage_settings" },
+    ];
+
+    const isAdmin = ["super_admin", "hospital_admin", "admin"].includes(role);
+    const filterFn = (item) => !item.permission || isAdmin || (permissions || []).includes(item.permission);
+
     return [
-      { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/admin/doctors", label: "Doctors", icon: Stethoscope },
-      { to: "/admin/patients", label: "Patients", icon: UsersRound },
-      { to: "/admin/appointments", label: "Appointments", icon: CalendarDays },
-      { to: "/admin/billing", label: "Billing", icon: CreditCard },
-      { to: "/admin/lab", label: "Lab", icon: Beaker },
-      { to: "/admin/reports", label: "Reports", icon: TrendingUp },
-      { to: "/admin/business", label: "Business", icon: DollarSign },
-      { to: "/admin/inventory", label: "Inventory", icon: Package },
-      { to: "/admin/subscription", label: "Subscription", icon: Layers },
-      { to: "/admin/branding", label: "Branding", icon: Palette },
-      { to: "/admin/settings", label: "Settings", icon: Settings },
+      {
+        title: "Workspace",
+        items: [{ to: "/admin", label: "Dashboard", icon: LayoutDashboard }],
+      },
+      {
+        title: "Clinical Care",
+        items: allClinical.filter(filterFn),
+      },
+      {
+        title: "Business Ops",
+        items: allOps.filter(filterFn),
+      },
+      {
+        title: "System settings",
+        items: allSystem.filter(filterFn),
+      },
     ];
   }
 
   if (path.startsWith("/doctor")) {
     return [
-      { to: "/doctor", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/doctor/appointments", label: "My Appointments", icon: CalendarDays },
-      { to: "/doctor/patients", label: "My Patients", icon: UsersRound },
-      { to: "/doctor/emr", label: "EMR", icon: FileText },
-      { to: "/doctor/prescriptions", label: "Prescriptions", icon: Pill },
-      { to: "/doctor/lab-requests", label: "Lab Requests", icon: Beaker },
+      {
+        title: "Workspace",
+        items: [
+          { to: "/doctor", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/doctor/appointments", label: "My Appointments", icon: CalendarDays },
+        ],
+      },
+      {
+        title: "Patient Care",
+        items: [
+          { to: "/doctor/patients", label: "My Patients", icon: UsersRound },
+          { to: "/doctor/emr", label: "EMR", icon: FileText },
+          { to: "/doctor/prescriptions", label: "Prescriptions", icon: Pill },
+          { to: "/doctor/lab-requests", label: "Lab Requests", icon: Beaker },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/reception")) {
     return [
-      { to: "/reception", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/reception/patients", label: "Patient Registration", icon: UserPlus },
-      { to: "/reception/appointments", label: "Appointments", icon: CalendarDays },
-      { to: "/reception/check-in", label: "Check-In", icon: UserCheck },
-      { to: "/reception/billing", label: "Billing", icon: CreditCard },
-      { to: "/reception/payments", label: "Payments", icon: Receipt },
+      {
+        title: "Workspace",
+        items: [{ to: "/reception", label: "Dashboard", icon: LayoutDashboard }],
+      },
+      {
+        title: "Front Desk",
+        items: [
+          { to: "/reception/patients", label: "Patient Registration", icon: UserPlus },
+          { to: "/reception/appointments", label: "Appointments", icon: CalendarDays },
+          { to: "/reception/check-in", label: "Check-In", icon: UserCheck },
+        ],
+      },
+      {
+        title: "Financials",
+        items: [
+          { to: "/reception/billing", label: "Billing", icon: CreditCard },
+          { to: "/reception/payments", label: "Payments", icon: Receipt },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/lab")) {
     return [
-      { to: "/lab", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/lab/orders", label: "Lab Orders", icon: Beaker },
-      { to: "/lab/sample-collection", label: "Sample Collection", icon: UserCheck },
-      { to: "/lab/test-results", label: "Test Results", icon: Activity },
-      { to: "/lab/reports", label: "Reports", icon: FileText },
+      {
+        title: "Diagnostics",
+        items: [
+          { to: "/lab", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/lab/orders", label: "Lab Orders", icon: Beaker },
+          { to: "/lab/sample-collection", label: "Sample Collection", icon: UserCheck },
+          { to: "/lab/test-results", label: "Test Results", icon: Activity },
+          { to: "/lab/reports", label: "Reports", icon: FileText },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/pharmacy")) {
     return [
-      { to: "/pharmacy", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/pharmacy/prescriptions", label: "Prescriptions", icon: Pill },
-      { to: "/pharmacy/inventory", label: "Inventory", icon: Layers },
-      { to: "/pharmacy/sales", label: "Sales", icon: DollarSign },
-      { to: "/pharmacy/stock-alerts", label: "Stock Alerts", icon: AlertTriangle },
+      {
+        title: "Pharmacy Ops",
+        items: [
+          { to: "/pharmacy", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/pharmacy/prescriptions", label: "Prescriptions", icon: Pill },
+          { to: "/pharmacy/inventory", label: "Inventory", icon: Layers },
+          { to: "/pharmacy/sales", label: "Sales", icon: DollarSign },
+          { to: "/pharmacy/stock-alerts", label: "Stock Alerts", icon: AlertTriangle },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/nurse")) {
     return [
-      { to: "/nurse", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/nurse/patients", label: "Assigned Patients", icon: UsersRound },
-      { to: "/nurse/vitals", label: "Vitals", icon: Activity },
-      { to: "/nurse/care-notes", label: "Care Notes", icon: FileText },
-      { to: "/nurse/medications", label: "Medication Tracking", icon: Pill },
+      {
+        title: "Patient Care",
+        items: [
+          { to: "/nurse", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/nurse/patients", label: "Assigned Patients", icon: UsersRound },
+          { to: "/nurse/vitals", label: "Vitals", icon: Activity },
+          { to: "/nurse/care-notes", label: "Care Notes", icon: FileText },
+          { to: "/nurse/medications", label: "Medication Tracking", icon: Pill },
+        ],
+      },
     ];
   }
 
   if (path.startsWith("/patient")) {
     return [
-      { to: "/patient", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/patient/appointments", label: "Appointments", icon: CalendarDays },
-      { to: "/patient/prescriptions", label: "Prescriptions", icon: Pill },
-      { to: "/patient/reports", label: "Lab Reports", icon: Beaker },
-      { to: "/patient/payments", label: "Payments", icon: CreditCard },
-      { to: "/patient/telemedicine", label: "Telemedicine", icon: Video },
+      {
+        title: "My Health",
+        items: [
+          { to: "/patient", label: "Dashboard", icon: LayoutDashboard },
+          { to: "/patient/appointments", label: "Appointments", icon: CalendarDays },
+          { to: "/patient/prescriptions", label: "Prescriptions", icon: Pill },
+          { to: "/patient/reports", label: "Lab Reports", icon: Beaker },
+          { to: "/patient/payments", label: "Payments", icon: CreditCard },
+          { to: "/patient/telemedicine", label: "Telemedicine", icon: Video },
+        ],
+      },
     ];
   }
 
   const isAdmin = ["super_admin", "hospital_admin", "admin"].includes(role);
-  
-  if (role === "lab_technician") {
-    return [
-      { to: "/lab", label: "Lab Dashboard", icon: Beaker }
-    ];
-  }
+  const isBillingStaffOrAdmin = ["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"].includes(role);
 
-  if (role === "pharmacist") {
-    return [
-      { to: "/pharmacy", label: "Pharmacy Dashboard", icon: Pill }
-    ];
-  }
-
-  const shared = [
+  // Default / Legacy fallback grouped items
+  const mainItems = [
     { to: isAdmin ? "/admin" : "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/appointments", label: "Appointments", icon: CalendarDays },
     { to: "/records", label: "Medical records", icon: FileText },
   ];
 
-  const isBillingStaffOrAdmin = ["super_admin", "hospital_admin", "admin", "billing_executive", "receptionist"].includes(role);
-
+  const coreItems = [];
   if (role === "patient") {
-    return [
-      ...shared,
+    coreItems.push(
       { to: "/doctors", label: "Find doctors", icon: Stethoscope },
       { to: "/patient/reports", label: "Lab Reports", icon: Beaker },
       { to: "/patient/pharmacy", label: "Medications", icon: Pill },
-      { to: "/patient/billing", label: "Billing", icon: CreditCard },
-    ];
+      { to: "/patient/billing", label: "Billing", icon: CreditCard }
+    );
+  } else if (role === "doctor") {
+    coreItems.push(
+      { to: "/patients", label: "Patients", icon: UsersRound }
+    );
+  } else {
+    coreItems.push(
+      { to: isAdmin ? "/admin/patients" : "/patients", label: "Patients", icon: UsersRound },
+      { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
+      { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard }
+    );
   }
 
-
-  if (role === "doctor") {
-    return [
-      ...shared,
-      { to: "/patients", label: "Patients", icon: UsersRound },
-    ];
+  const adminItems = [];
+  if (isAdmin) {
+    adminItems.push(
+      { to: "/admin/lab", label: "Lab Management", icon: Beaker },
+      { to: "/admin/pharmacy", label: "Pharmacy Management", icon: Pill },
+      { to: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck }
+    );
   }
 
   return [
-    ...shared,
-    { to: isAdmin ? "/admin/patients" : "/patients", label: "Patients", icon: UsersRound },
-    { to: isAdmin ? "/admin/doctors" : "/doctors", label: "Doctors", icon: Stethoscope },
-    { to: isBillingStaffOrAdmin ? "/admin/billing" : "/billing", label: "Billing", icon: CreditCard },
-    ...(isAdmin ? [{ to: "/admin/lab", label: "Lab Management", icon: Beaker }] : []),
-    ...(isAdmin ? [{ to: "/admin/pharmacy", label: "Pharmacy Management", icon: Pill }] : []),
-    ...(isAdmin ? [{ to: "/admin/audit-logs", label: "Audit Logs", icon: ShieldCheck }] : []),
+    {
+      title: "Workspace",
+      items: mainItems,
+    },
+    {
+      title: "Services",
+      items: coreItems,
+    },
+    ...(adminItems.length > 0 ? [{ title: "Administration", items: adminItems }] : []),
   ];
 }
 
@@ -186,7 +269,7 @@ export default function Sidebar({ collapsed: propCollapsed, onToggleCollapse, is
   const location = useLocation();
   const user = getUser();
   const { branding } = useBranding();
-  const items = buildNavItems(user?.role, location.pathname);
+  const items = buildNavItems(user?.role, location.pathname, user?.permissions);
   
   const [localCollapsed, setLocalCollapsed] = useState(() => {
     const saved = localStorage.getItem("mc_sidebar_collapsed");
@@ -319,30 +402,39 @@ export default function Sidebar({ collapsed: propCollapsed, onToggleCollapse, is
         </div>
 
         {/* Nav list */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={handleNavClick}
-                title={collapsed ? item.label : undefined}
-                className={({ isActive }) =>
-                  cn(
-                    navBase,
-                    collapsed && "justify-center px-0 w-11 h-11 mx-auto",
-                    isActive
-                      ? "bg-brand-600 text-white shadow-soft hover:bg-brand-700 dark:bg-brand-500 dark:text-slate-950 dark:font-bold"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900/60"
-                  )
-                }
-              >
-                <Icon className={cn("h-4.5 w-4.5 shrink-0", collapsed && "h-5 w-5")} />
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+          {items.map((group) => (
+            <div key={group.title} className="space-y-1.5">
+              {!collapsed && (
+                <div className="px-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5 mt-2">
+                  {group.title}
+                </div>
+              )}
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={handleNavClick}
+                    title={collapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      cn(
+                        navBase,
+                        collapsed && "justify-center px-0 w-11 h-11 mx-auto",
+                        isActive
+                          ? "bg-brand-600 text-white shadow-soft hover:bg-brand-700 dark:bg-brand-500 dark:text-slate-950 dark:font-bold"
+                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900/60"
+                      )
+                    }
+                  >
+                    <Icon className={cn("h-4.5 w-4.5 shrink-0", collapsed && "h-5 w-5")} />
+                    {!collapsed && <span>{item.label}</span>}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Footer: branding text + sign out */}

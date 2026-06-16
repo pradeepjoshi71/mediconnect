@@ -13,9 +13,7 @@ async function listUsers(user) {
 }
 
 async function createStaffUser(user, payload, context) {
-  if (!["doctor", "receptionist"].includes(payload.role)) {
-    throw new AppError(400, "Role must be doctor or receptionist");
-  }
+  // Role validation is enforced by Zod schema in adminController (createStaffSchema).
 
   const passwordHash = await bcrypt.hash(payload.password, 12);
 

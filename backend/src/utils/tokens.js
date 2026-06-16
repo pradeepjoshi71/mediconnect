@@ -52,6 +52,7 @@ function verifyAccessToken(token) {
   return jwt.verify(token, secret, {
     issuer: "mediconnect-api",
     audience: "mediconnect-clients",
+    algorithms: ["HS256"],
   });
 }
 
@@ -61,6 +62,7 @@ function verifyRefreshToken(token) {
   return jwt.verify(token, secret, {
     issuer: "mediconnect-api",
     audience: "mediconnect-clients",
+    algorithms: ["HS256"],
   });
 }
 

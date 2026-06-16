@@ -254,6 +254,9 @@ router.get('/', authMiddleware, async (req, res) => {
 
   const { status = 'open', limit = 50, offset = 0 } = req.query;
 
+  const isSuperAdmin = req.user.role === 'super_admin';
+  const hospitalId = isSuperAdmin ? null : req.user.hospitalId;
+
   try {
     const result = await db.query(
       `SELECT
@@ -271,9 +274,10 @@ router.get('/', authMiddleware, async (req, res) => {
        FROM beta_feedback bf
        LEFT JOIN hospitals h ON h.id = bf.tenant_id
        WHERE ($1 = 'all' OR bf.status = $1)
+         AND ($4::int IS NULL OR bf.tenant_id = $4)
        ORDER BY bf.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [status, Math.min(Number(limit), 100), Number(offset)]
+      [status, Math.min(Number(limit), 100), Number(offset), hospitalId]
     );
 
     return res.json({ success: true, data: result.rows, count: result.rowCount });

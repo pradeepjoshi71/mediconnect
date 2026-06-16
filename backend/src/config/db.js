@@ -9,29 +9,32 @@ const { Pool } = require('pg');
 // warm-path query skips the TCP handshake overhead.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const pool = new Pool({
-  // ── Connection identity ───────────────────────────────────────────────────
-  connectionString: process.env.DATABASE_URL,   // Neon gives a single pooled URL
+const poolConfig = {
   application_name: process.env.DB_APP_NAME || 'mediconnect-backend',
-
-  // ── Neon Free Tier pool constraints ──────────────────────────────────────
-  max: Number(process.env.DB_POOL_MAX || 4),         // Hard cap — never exceed Neon's 5-connection limit
-  min: 0,                                             // Release all connections when idle (Render sleeps)
-  idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 10000),        // Harvest idle clients after 10 s
-  connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 5000), // Fail fast on cold DB
-
-  // ── Keep-alive: prevents "connection reset by peer" on Neon's 5-min ──────
-  // idle-connection pruner and Render's TCP teardown during sleep.
+  max: Number(process.env.DB_POOL_MAX || 4),
+  min: 0,
+  idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 10000),
+  connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 5000),
   keepAlive: true,
-  keepAliveInitialDelayMillis: 10000, // Start sending keepalive probes after 10 s of idle
-
-  // ── SSL: required by Neon, rejected by local pg without DB_SSL=true ──────
+  keepAliveInitialDelayMillis: 10000,
   ssl: process.env.DB_SSL === 'false'
     ? undefined
     : {
         rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
       },
-});
+};
+
+if (process.env.DATABASE_URL) {
+  poolConfig.connectionString = process.env.DATABASE_URL;
+} else {
+  poolConfig.user = process.env.DB_USER;
+  poolConfig.password = process.env.DB_PASSWORD;
+  poolConfig.host = process.env.DB_HOST;
+  poolConfig.database = process.env.DB_NAME;
+  poolConfig.port = Number(process.env.DB_PORT || 5432);
+}
+
+const pool = new Pool(poolConfig);
 
 // ─── Pool event hooks ─────────────────────────────────────────────────────────
 pool.on('connect', (client) => {

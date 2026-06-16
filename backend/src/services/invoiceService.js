@@ -2,13 +2,14 @@ const invoiceRepository = require("../repositories/invoiceRepository");
 const patientRepository = require("../repositories/patientRepository");
 const auditService = require("./auditService");
 const { AppError } = require("../utils/http");
+const { hasPermission } = require("../utils/rbac");
 
 function nextInvoiceNumber() {
   return `INV-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
 }
 
 async function createInvoice(user, payload, context) {
-  if (!["admin", "super_admin", "hospital_admin", "billing_executive", "receptionist"].includes(user.role)) {
+  if (!hasPermission(user, "manage_billing", "record_payments")) {
     throw new AppError(403, "Forbidden: insufficient permissions to create invoices");
   }
 
@@ -66,7 +67,7 @@ async function createInvoice(user, payload, context) {
 }
 
 async function updateInvoice(user, id, payload, context) {
-  if (!["admin", "super_admin", "hospital_admin", "billing_executive", "receptionist"].includes(user.role)) {
+  if (!hasPermission(user, "manage_billing")) {
     throw new AppError(403, "Forbidden: insufficient permissions to update invoices");
   }
 

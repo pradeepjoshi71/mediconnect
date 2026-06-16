@@ -72,7 +72,7 @@ async function getRevenueSeries(hospitalId) {
       SELECT
         to_char(day_bucket, 'Mon DD') AS label,
         day_bucket::date AS date,
-        COALESCE(amount_cents, 0)::int AS "amountCents"
+        COALESCE(sums.revenue_cents, 0)::int AS "amountCents"
       FROM (
         SELECT
           generate_series(
@@ -82,7 +82,7 @@ async function getRevenueSeries(hospitalId) {
           ) AS day_bucket
       ) buckets
       LEFT JOIN LATERAL (
-        SELECT SUM(p.amount_cents) AS amount_cents
+        SELECT SUM(p.amount_cents) AS revenue_cents
         FROM payments p
         WHERE p.hospital_id = $1
           AND p.status = 'paid'
@@ -95,6 +95,7 @@ async function getRevenueSeries(hospitalId) {
   );
   return result.rows;
 }
+
 
 async function getDoctorPerformance(hospitalId) {
   const result = await db.query(

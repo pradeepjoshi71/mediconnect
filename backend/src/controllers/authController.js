@@ -4,7 +4,7 @@ const { refreshCookieOptions } = require("../utils/tokens");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 
 const registerSchema = z.object({
-  hospitalCode: z.string().trim().max(24).optional(),
+  hospitalCode: z.string().trim().min(1, "Hospital code is required").max(24),
   fullName: z.string().min(2).max(120),
   email: z.string().email().max(255),
   password: z.string().min(8).max(72),
@@ -14,7 +14,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  hospitalCode: z.string().trim().max(24).optional(),
+  hospitalCode: z.string().trim().min(1, "Hospital code is required").max(24),
   email: z.string().email().max(255),
   password: z.string().min(1).max(72),
 });
@@ -61,7 +61,9 @@ const login = asyncHandler(async (req, res) => {
 
 const refresh = asyncHandler(async (req, res) => {
   const result = await authService.refresh(req.cookies?.refresh_token);
-  res.json(result);
+  res.cookie("refresh_token", result.refreshToken, refreshCookieOptions());
+  const { refreshToken, ...responseBody } = result;
+  res.json(responseBody);
 });
 
 const logout = asyncHandler(async (req, res) => {
@@ -81,10 +83,44 @@ const me = asyncHandler(async (req, res) => {
   });
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email().max(255),
+  hospitalCode: z.string().trim().min(1, "Hospital code is required").max(24),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(72),
+  hospitalCode: z.string().trim().min(1, "Hospital code is required").max(24),
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const payload = forgotPasswordSchema.parse(req.body);
+  const result = await authService.forgotPassword(
+    payload.email,
+    payload.hospitalCode,
+    req.auditContext
+  );
+  res.json(result);
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const payload = resetPasswordSchema.parse(req.body);
+  const result = await authService.resetPassword(
+    payload.token,
+    payload.password,
+    payload.hospitalCode,
+    req.auditContext
+  );
+  res.json(result);
+});
+
 module.exports = {
   register,
   login,
   refresh,
   logout,
   me,
+  forgotPassword,
+  resetPassword,
 };

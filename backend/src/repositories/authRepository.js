@@ -11,6 +11,8 @@ const USER_SELECT = `
     u.avatar_url AS "avatarUrl",
     u.password_hash AS "passwordHash",
     u.last_login_at AS "lastLoginAt",
+    u.failed_login_attempts AS "failedLoginAttempts",
+    u.locked_until_at AS "lockedUntilAt",
     r.code AS role,
     h.code AS "hospitalCode",
     h.slug AS "hospitalSlug",
@@ -148,6 +150,80 @@ async function touchLastLogin(userId) {
   );
 }
 
+async function incrementFailedLogin(userId) {
+  const result = await db.query(
+    `UPDATE users
+     SET failed_login_attempts = failed_login_attempts + 1,
+         locked_until_at = CASE 
+           WHEN failed_login_attempts + 1 >= 5 THEN now() + interval '15 minutes' 
+           ELSE locked_until_at 
+         END
+     WHERE id = $1
+     RETURNING failed_login_attempts AS "failedLoginAttempts", locked_until_at AS "lockedUntilAt"`,
+    [userId]
+  );
+  return result.rows[0];
+}
+
+async function resetFailedLogin(userId) {
+  await db.query(
+    `UPDATE users
+     SET failed_login_attempts = 0,
+         locked_until_at = NULL
+     WHERE id = $1`,
+    [userId]
+  );
+}
+
+async function createPasswordReset({ hospitalId, userId, tokenHash, expiresAt }) {
+  await db.query(
+    `INSERT INTO password_resets (hospital_id, user_id, token_hash, expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [hospitalId, userId, tokenHash, expiresAt]
+  );
+}
+
+async function findActivePasswordResetByHash(tokenHash) {
+  const result = await db.query(
+    `SELECT *
+     FROM password_resets
+     WHERE token_hash = $1
+       AND used_at IS NULL
+       AND expires_at > now()
+     LIMIT 1`,
+    [tokenHash]
+  );
+  return result.rows[0] || null;
+}
+
+async function markPasswordResetAsUsed(id) {
+  await db.query(
+    `UPDATE password_resets
+     SET used_at = now()
+     WHERE id = $1`,
+    [id]
+  );
+}
+
+async function updatePasswordHash(userId, passwordHash) {
+  await db.query(
+    `UPDATE users
+     SET password_hash = $1
+     WHERE id = $2`,
+    [passwordHash, userId]
+  );
+}
+
+async function revokeAllUserRefreshTokens(userId) {
+  await db.query(
+    `UPDATE refresh_tokens
+     SET revoked_at = now()
+     WHERE user_id = $1
+       AND revoked_at IS NULL`,
+    [userId]
+  );
+}
+
 async function getUserPermissions(userId) {
   const result = await db.query(
     `SELECT DISTINCT p.code
@@ -174,5 +250,12 @@ module.exports = {
   findActiveRefreshTokenByHash,
   revokeRefreshTokenByHash,
   touchLastLogin,
+  incrementFailedLogin,
+  resetFailedLogin,
+  createPasswordReset,
+  findActivePasswordResetByHash,
+  markPasswordResetAsUsed,
+  updatePasswordHash,
+  revokeAllUserRefreshTokens,
   getUserPermissions,
 };

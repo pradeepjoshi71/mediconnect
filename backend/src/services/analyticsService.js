@@ -4,9 +4,7 @@ const intelligenceService = require("./intelligenceService");
 const { AppError } = require("../utils/http");
 
 async function getAnalyticsOverview(user) {
-  if (!["admin", "receptionist"].includes(user.role)) {
-    throw new AppError(403, "Analytics are restricted to operational roles");
-  }
+  // Authorization is handled by permissionMiddleware("view_analytics") at the route level.
 
   const cacheKey = `analytics:${user.hospitalId}:overview`;
   const cached = await getJson(cacheKey);

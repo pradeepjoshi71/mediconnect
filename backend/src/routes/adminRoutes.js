@@ -1,13 +1,18 @@
 const express = require("express");
 const adminController = require("../controllers/adminController");
 const authMiddleware = require("../middlewares/authMiddleware");
-const roleMiddleware = require("../middlewares/roleMiddleware");
+const permissionMiddleware = require("../middlewares/permissionMiddleware");
 
 const router = express.Router();
 
-router.get("/users", authMiddleware, roleMiddleware("admin"), adminController.listUsers);
-router.get("/hospital", authMiddleware, roleMiddleware("admin"), adminController.getHospitalSummary);
-router.get("/audit-logs", authMiddleware, roleMiddleware("admin"), adminController.listAuditLogs);
-router.post("/staff", authMiddleware, roleMiddleware("admin"), adminController.createStaffUser);
+// List users and hospital summary: manage_settings (hospital_admin, super_admin, admin)
+router.get("/users", authMiddleware, permissionMiddleware("manage_settings"), adminController.listUsers);
+router.get("/hospital", authMiddleware, permissionMiddleware("manage_settings"), adminController.getHospitalSummary);
+
+// Audit logs: view_analytics permission (report_admin, hospital_admin, super_admin, admin)
+router.get("/audit-logs", authMiddleware, permissionMiddleware("view_analytics"), adminController.listAuditLogs);
+
+// Create staff: manage_settings (hospital_admin, super_admin, admin)
+router.post("/staff", authMiddleware, permissionMiddleware("manage_settings"), adminController.createStaffUser);
 
 module.exports = router;

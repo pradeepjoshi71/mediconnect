@@ -44,6 +44,7 @@ api.interceptors.response.use(
     } catch (refreshError) {
       refreshPromise = null;
       clearSession();
+      window.dispatchEvent(new CustomEvent("mc-auth-expired"));
       throw refreshError;
     }
   }

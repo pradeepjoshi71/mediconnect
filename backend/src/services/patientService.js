@@ -3,9 +3,11 @@ const clinicalRepository = require("../repositories/clinicalRepository");
 const fileService = require("./fileService");
 const auditService = require("./auditService");
 const { AppError } = require("../utils/http");
+const { hasPermission } = require("../utils/rbac");
 
 async function listPatients(user, search) {
-  if (!["doctor", "admin", "receptionist", "super_admin", "hospital_admin"].includes(user.role)) {
+  // Allow any user with view_patients permission (doctor, patient_manager, lab_admin, report_admin, receptionist, etc.)
+  if (!hasPermission(user, "view_patients")) {
     throw new AppError(403, "You do not have access to patient search");
   }
   return patientRepository.listPatients(user.hospitalId, search);
@@ -48,7 +50,8 @@ async function getPatientSummary(user, patientId, context) {
 }
 
 async function createPatient(user, data, context) {
-  if (!["admin", "super_admin", "hospital_admin", "receptionist"].includes(user.role)) {
+  // Allow any user with register_patients permission (patient_manager, receptionist, etc.)
+  if (!hasPermission(user, "register_patients")) {
     throw new AppError(403, "You do not have access to create patients");
   }
 
@@ -69,9 +72,9 @@ async function createPatient(user, data, context) {
 
 async function updatePatient(user, id, data, context) {
   const isSelf = user.role === "patient" && Number(user.patientProfileId) === Number(id);
-  const isStaff = ["admin", "super_admin", "hospital_admin", "doctor", "receptionist"].includes(user.role);
+  const canUpdate = hasPermission(user, "register_patients", "manage_records");
 
-  if (!isSelf && !isStaff) {
+  if (!isSelf && !canUpdate) {
     throw new AppError(403, "You do not have access to update this patient");
   }
 
