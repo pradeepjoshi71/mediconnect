@@ -105,23 +105,40 @@ async function runNotificationJob(opts = {}) {
   const triggeredBy = opts.triggeredBy || 'scheduler';
   try {
     const queuedRes = await db.query(
-      `SELECT id, user_id, title, body, data
+      `SELECT id, user_id, title, body, data, channel
        FROM notifications
-       WHERE status = 'queued' AND channel = 'push'
+       WHERE status = 'queued' AND channel IN ('push', 'email')
        LIMIT 50`
     );
     
     let processed = 0;
     for (const row of queuedRes.rows) {
       try {
-        const fcmResult = await firebaseService.sendToUser({
-          userId: row.user_id,
-          title: row.title,
-          body: row.body,
-          data: row.data
-        });
-        const status = fcmResult && fcmResult.sent > 0 ? 'sent' : 'failed';
-        await db.query(`UPDATE notifications SET status = $1 WHERE id = $2`, [status, row.id]);
+        if (row.channel === 'push') {
+          const fcmResult = await firebaseService.sendToUser({
+            userId: row.user_id,
+            title: row.title,
+            body: row.body,
+            data: row.data
+          });
+          const status = fcmResult && fcmResult.sent > 0 ? 'sent' : 'failed';
+          await db.query(`UPDATE notifications SET status = $1 WHERE id = $2`, [status, row.id]);
+        } else if (row.channel === 'email') {
+          const authRepository = require("../repositories/authRepository");
+          const user = await authRepository.findUserById(row.user_id);
+          if (user && user.email) {
+            const emailService = require("./emailService");
+            await emailService.sendEmail({
+              to: user.email,
+              subject: row.title,
+              html: `<p>${row.body}</p>`,
+              text: row.body,
+            });
+            await db.query(`UPDATE notifications SET status = 'sent' WHERE id = $1`, [row.id]);
+          } else {
+            await db.query(`UPDATE notifications SET status = 'failed' WHERE id = $1`, [row.id]);
+          }
+        }
         processed++;
       } catch (err) {
         await db.query(`UPDATE notifications SET status = 'failed' WHERE id = $2`, [row.id]);
@@ -133,7 +150,7 @@ async function runNotificationJob(opts = {}) {
       type: 'notification_job',
       status: 'success',
       durationMs: completedAt - startedAt,
-      message: `Processed ${processed} queued push notifications successfully.`,
+      message: `Processed ${processed} queued push/email notifications successfully.`,
       triggeredBy,
       startedAt,
       completedAt

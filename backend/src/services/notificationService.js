@@ -150,6 +150,26 @@ async function notifyUser({
         logger.error("Failed to send push notification via Firebase in notifyUser", { userId, error: err.message });
         status = "failed";
       }
+    } else if (channel === "email") {
+      try {
+        const authRepository = require("../repositories/authRepository");
+        const user = await authRepository.findUserById(userId);
+        if (user && user.email) {
+          const emailService = require("./emailService");
+          await emailService.sendEmail({
+            to: user.email,
+            subject: title,
+            html: `<p>${body}</p>`,
+            text: body,
+          });
+          status = "sent";
+        } else {
+          status = "failed";
+        }
+      } catch (err) {
+        logger.error("Failed to send email notification via SES in notifyUser", { userId, error: err.message });
+        status = "failed";
+      }
     }
 
     const notification = await notificationRepository.createNotification({

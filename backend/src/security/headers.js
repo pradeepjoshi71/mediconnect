@@ -11,6 +11,27 @@ const helmet = require('helmet');
  *  - Razorpay:  *.razorpay.com, checkout.razorpay.com
  *  - Firebase:  *.firebaseapp.com, *.firebase.google.com, *.googleapis.com
  */
+const clientOrigins = (process.env.CLIENT_ORIGIN || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean)
+  .map(o => {
+    try {
+      const u = new URL(o);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return o;
+    }
+  });
+
+const trustedOrigins = [
+  ...clientOrigins,
+  'https://*.vercel.app',
+  'https://*.firebaseapp.com',
+  'https://*.googleapis.com',
+  'https://firebasestorage.googleapis.com',
+];
+
 const securityHeaders = helmet({
   // ─── Content Security Policy ────────────────────────────────────────────────
   contentSecurityPolicy: {
@@ -42,27 +63,17 @@ const securityHeaders = helmet({
         "'self'",
         'data:',                          // base64 images
         'blob:',
-        'https://*.vercel.app',
-        'https://*.onrender.com',
-        'https://*.firebaseapp.com',
-        'https://*.googleapis.com',
-        'https://firebasestorage.googleapis.com',
+        ...trustedOrigins,
       ],
 
       connectSrc: [
         "'self'",
-        // Vercel deployments (API calls from frontend)
-        'https://*.vercel.app',
-        // Render backend
-        'https://*.onrender.com',
+        ...trustedOrigins,
         // Razorpay payment APIs
         'https://*.razorpay.com',
         'https://lumberjack.razorpay.com',
         // Firebase Auth, Firestore, Storage
-        'https://*.firebaseapp.com',
         'https://*.firebase.google.com',
-        'https://*.googleapis.com',
-        'https://firebasestorage.googleapis.com',
         'wss://*.firebaseio.com',         // Firestore real-time via WebSocket
       ],
 

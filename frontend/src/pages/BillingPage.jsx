@@ -753,7 +753,24 @@ export default function BillingPage() {
                   </Badge>
                 )
               },
-              { key: "paymentMethodLabel", label: "Method" },
+              {
+                key: "paymentMethodLabel",
+                label: "Method",
+                render: (row) => {
+                  const method = (row.paymentMethodLabel || row.paymentMethod || "").trim().toUpperCase();
+                  let tone = "slate";
+                  if (method.includes("UPI")) tone = "emerald";
+                  else if (method.includes("CARD")) tone = "brand";
+                  else if (method.includes("CASH")) tone = "slate";
+                  else if (method.includes("TRANSFER") || method.includes("NEFT")) tone = "violet";
+
+                  return (
+                    <Badge tone={tone}>
+                      {row.paymentMethodLabel || row.paymentMethod || "—"}
+                    </Badge>
+                  );
+                }
+              },
               {
                 key: "amount",
                 label: "Amount",

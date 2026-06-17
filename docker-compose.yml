@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -41,8 +39,6 @@ services:
     container_name: mediconnect-redis
     restart: always
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -61,9 +57,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - minio_data:/data
     networks:
@@ -86,9 +79,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_BACKUP_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_BACKUP_SECRET_KEY:-minioadmin}
-    ports:
-      - "9002:9000"
-      - "9003:9001"
     volumes:
       - minio_backup_data:/data
     networks:
@@ -151,8 +141,6 @@ services:
       # mc mirror config — set these to enable real MinIO replication
       MINIO_PRIMARY_ALIAS: ${MINIO_PRIMARY_ALIAS:-mediconnect-primary}
       MINIO_BACKUP_ALIAS: ${MINIO_BACKUP_ALIAS:-}
-    ports:
-      - "5000:5000"
     volumes:
       - uploads_data:${UPLOADS_DIR}
       # Backup volume shared with postgres so backend can write pg_dump files
@@ -174,8 +162,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    ports:
-      - "4173:4173"
     networks:
       - mediconnect-network
     healthcheck:
@@ -193,8 +179,8 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # SSL certificates — place fullchain.pem and privkey.pem in ./nginx/ssl/
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # SSL certificates — mount Let's Encrypt directly to support symlinks
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       frontend:
         condition: service_healthy

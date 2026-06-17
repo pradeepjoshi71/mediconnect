@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import {
   Plus,
@@ -198,6 +198,20 @@ export default function AdminPatients() {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  const searchInputRef = useRef(null);
+
+  // Keyboard shortcut Ctrl+/ to focus search input
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Profile view states
   const [viewingPatientId, setViewingPatientId] = useState(null);
@@ -2635,10 +2649,11 @@ export default function AdminPatients() {
         <div className="relative w-full sm:max-w-md">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-neutral-500" />
           <Input
+            ref={searchInputRef}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-11 pr-4"
-            placeholder="Search by name, email, or MRN..."
+            placeholder="Search by name, email, or MRN... (Ctrl+/)"
           />
         </div>
         

@@ -325,9 +325,16 @@ async function forgotPassword(email, hospitalCode, auditContext) {
     context: auditContext,
   });
 
+  // Dispatch password reset email via SES
+  const emailService = require("./emailService");
+  const logger = require("../utils/logger");
+  emailService.sendPasswordResetEmail(user.email, rawToken, hospital.code)
+    .catch((err) => {
+      logger.error("Failed to send password reset email via SES", { email: user.email, error: err.message });
+    });
+
   return {
-    message: "Password reset token generated",
-    token: rawToken,
+    message: "If an account exists, a password reset token has been generated.",
   };
 }
 

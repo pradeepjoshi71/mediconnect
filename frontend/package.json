@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node replace-render-url.cjs && vite build",
     "preview": "vite preview --host"
   },
   "dependencies": {

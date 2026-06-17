@@ -1,9 +1,11 @@
+import { forwardRef } from "react";
 import { cn } from "../../utils/cn";
 
-export function Input({ className, error, ...props }) {
+export const Input = forwardRef(({ className, error, ...props }, ref) => {
   return (
     <div className="w-full flex flex-col items-start">
       <input
+        ref={ref}
         className={cn(
           "h-11 w-full rounded-xl border border-slate-200 bg-white/60 px-4 text-sm text-slate-900 transition-all duration-200",
           "placeholder:text-slate-400 focus:bg-white focus:border-brand-500/80",
@@ -22,5 +24,7 @@ export function Input({ className, error, ...props }) {
       )}
     </div>
   );
-}
+});
+
+Input.displayName = "Input";
 
