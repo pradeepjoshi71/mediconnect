@@ -241,6 +241,8 @@ export default function AppointmentsPage() {
   const [waitlist, setWaitlist] = useState([]);
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [booking, setBooking] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -267,6 +269,17 @@ export default function AppointmentsPage() {
     priority: "routine",
     waitingListRequested: false,
   });
+
+  const handleFormChange = (field, value) => {
+    setForm(current => ({ ...current, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
   const [rescheduleTarget, setRescheduleTarget] = useState(null);
   const [rescheduleDate, setRescheduleDate] = useState(formatDateInput(new Date()));
   const [rescheduleSlots, setRescheduleSlots] = useState([]);
@@ -328,6 +341,29 @@ export default function AppointmentsPage() {
   }, [rescheduleTarget, rescheduleDate]);
 
   async function submitBooking() {
+    const formErrors = {};
+    if ((user?.role === "admin" || user?.role === "receptionist") && !form.patientId) {
+      formErrors.patientId = "Please select a patient";
+    }
+    if (!form.doctorId) {
+      formErrors.doctorId = "Please select a doctor";
+    }
+    if (!form.startsAt) {
+      formErrors.startsAt = "Please select a time slot";
+    }
+    if (!form.reason || !form.reason.trim()) {
+      formErrors.reason = "Reason for visit is required";
+    } else if (form.reason.trim().length < 5) {
+      formErrors.reason = "Reason must be at least 5 characters";
+    }
+
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      toast.error("Please fill all required booking parameters.");
+      return;
+    }
+
+    setBooking(true);
     try {
       const result = await bookAppointment({
         patientId: form.patientId ? Number(form.patientId) : undefined,
@@ -351,9 +387,12 @@ export default function AppointmentsPage() {
         startsAt: "",
         reason: "",
       }));
+      setErrors({});
       await load();
     } catch (error) {
       toast.error(error.response?.data?.message || "Unable to create booking");
+    } finally {
+      setBooking(false);
     }
   }
 
@@ -558,7 +597,7 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-12">
       <PageHeader
         eyebrow="Appointment operations"
         title="Booking, queue control, and virtual consults"
@@ -614,8 +653,9 @@ export default function AppointmentsPage() {
                   <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Patient</span>
                   <Select
                     value={form.patientId}
-                    onChange={(event) => setForm((current) => ({ ...current, patientId: event.target.value }))}
+                    onChange={(event) => handleFormChange("patientId", event.target.value)}
                     options={patientOptions}
+                    error={errors.patientId}
                   />
                 </div>
               ) : null}
@@ -623,8 +663,9 @@ export default function AppointmentsPage() {
                 <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Clinician</span>
                 <Select
                   value={form.doctorId}
-                  onChange={(event) => setForm((current) => ({ ...current, doctorId: event.target.value }))}
+                  onChange={(event) => handleFormChange("doctorId", event.target.value)}
                   options={doctorOptions}
+                  error={errors.doctorId}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -632,7 +673,7 @@ export default function AppointmentsPage() {
                 <Input 
                   type="date" 
                   value={form.date} 
-                  onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} 
+                  onChange={(event) => handleFormChange("date", event.target.value)} 
                   className="h-11 rounded-xl"
                 />
               </div>
@@ -643,7 +684,7 @@ export default function AppointmentsPage() {
                 <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Appointment Type</span>
                 <Select
                   value={form.appointmentType}
-                  onChange={(event) => setForm((current) => ({ ...current, appointmentType: event.target.value }))}
+                  onChange={(event) => handleFormChange("appointmentType", event.target.value)}
                   options={typeOptions}
                 />
               </div>
@@ -651,7 +692,7 @@ export default function AppointmentsPage() {
                 <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Consultation Mode</span>
                 <Select
                   value={form.consultationMode}
-                  onChange={(event) => setForm((current) => ({ ...current, consultationMode: event.target.value }))}
+                  onChange={(event) => handleFormChange("consultationMode", event.target.value)}
                   options={modeOptions}
                 />
               </div>
@@ -659,7 +700,7 @@ export default function AppointmentsPage() {
                 <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Priority Level</span>
                 <Select
                   value={form.priority}
-                  onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}
+                  onChange={(event) => handleFormChange("priority", event.target.value)}
                   options={priorityOptions}
                 />
               </div>
@@ -669,14 +710,18 @@ export default function AppointmentsPage() {
               <span className="text-xxs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Reason for visit</span>
               <Input
                 value={form.reason}
-                onChange={(event) => setForm((current) => ({ ...current, reason: event.target.value }))}
+                onChange={(event) => handleFormChange("reason", event.target.value)}
                 placeholder="e.g., Routine general review, post-op assessment, chest congestion"
                 className="h-11 rounded-xl"
+                error={errors.reason}
               />
             </div>
 
             {/* Availability Slots picker */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5 dark:border-slate-800/60 dark:bg-slate-900/10">
+            <div className={cn(
+              "rounded-2xl border p-5 transition-all duration-300",
+              errors.startsAt ? "border-red-500 bg-red-50/5" : "border-slate-200/80 bg-slate-50/50 dark:border-slate-800/60 dark:bg-slate-900/10"
+            )}>
               <div className="mb-4.5 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-250">
                 <CalendarDays className="h-4.5 w-4.5 text-brand-500" />
                 <span>Available time slots</span>
@@ -689,7 +734,7 @@ export default function AppointmentsPage() {
                       <button
                         key={slot.startsAt}
                         type="button"
-                        onClick={() => setForm((current) => ({ ...current, startsAt: slot.startsAt }))}
+                        onClick={() => handleFormChange("startsAt", slot.startsAt)}
                         className={cn(
                           "flex flex-col items-center justify-center rounded-2xl py-2 px-3 border transition-all duration-200 group text-center",
                           isSelected
@@ -714,6 +759,11 @@ export default function AppointmentsPage() {
                   <span>No live slots for the selected date. You can request a waitlist position instead.</span>
                 </div>
               )}
+              {errors.startsAt && (
+                <span className="mt-2 text-xxs font-bold text-red-500 block pl-1 animate-fade-in">
+                  {errors.startsAt}
+                </span>
+              )}
             </div>
 
             {/* Waitlist Toggle */}
@@ -733,7 +783,7 @@ export default function AppointmentsPage() {
             </label>
 
             <div className="flex flex-wrap gap-3 pt-2">
-              <Button onClick={submitBooking} className="bg-brand-600 hover:bg-brand-700 rounded-xl px-5 h-11 text-white shadow-premium-glow">
+              <Button onClick={submitBooking} loading={booking} className="bg-brand-600 hover:bg-brand-700 rounded-xl px-5 h-11 text-white shadow-premium-glow">
                 Book Appointment
               </Button>
               <Button variant="outline" onClick={joinWaitlist} className="rounded-xl px-5 h-11 border-slate-200 hover:bg-slate-50 dark:border-neutral-200/10 dark:hover:bg-neutral-100/5 flex items-center gap-2">

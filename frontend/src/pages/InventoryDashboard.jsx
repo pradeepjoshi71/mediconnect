@@ -46,6 +46,8 @@ export default function InventoryDashboard() {
   const [reportsData, setReportsData] = useState(null);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingReports, setLoadingReports] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Filters
   const [search, setSearch] = useState("");
@@ -78,6 +80,17 @@ export default function InventoryDashboard() {
     quantity: "",
     notes: "",
   });
+
+  const handleFormChange = (field, value) => {
+    setItemForm(current => ({ ...current, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   // Load catalog items
   const loadItems = async () => {
@@ -148,6 +161,7 @@ export default function InventoryDashboard() {
       expiryDate: "",
       vendor: "",
     });
+    setErrors({});
     setShowItemModal(true);
   };
 
@@ -165,25 +179,50 @@ export default function InventoryDashboard() {
       expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().slice(0, 10) : "",
       vendor: item.vendor || "",
     });
+    setErrors({});
     setShowItemModal(true);
   };
 
   // Submit Item Form
   const handleSubmitItem = async (e) => {
     e.preventDefault();
-    if (!itemForm.itemName || !itemForm.sku || !itemForm.category || !itemForm.unit) {
-      toast.error("Please fill in all required fields");
+    
+    // Validations
+    const formErrors = {};
+    if (!itemForm.itemName || !itemForm.itemName.trim()) {
+      formErrors.itemName = "Item name is required";
+    }
+    if (!itemForm.sku || !itemForm.sku.trim()) {
+      formErrors.sku = "SKU / Code is required";
+    } else if (itemForm.sku.trim().length < 3) {
+      formErrors.sku = "SKU must be at least 3 characters";
+    }
+    
+    const stockNum = Number(itemForm.currentStock);
+    if (isNaN(stockNum) || stockNum < 0) {
+      formErrors.currentStock = "Current stock level must be positive or zero";
+    }
+
+    const minNum = Number(itemForm.minimumStock);
+    if (isNaN(minNum) || minNum < 0) {
+      formErrors.minimumStock = "Minimum alert level must be positive or zero";
+    }
+
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      toast.error("Please resolve form validation issues.");
       return;
     }
 
+    setSubmitting(true);
     try {
       const payload = {
         itemName: itemForm.itemName,
         sku: itemForm.sku,
         category: itemForm.category,
         unit: itemForm.unit,
-        currentStock: parseInt(itemForm.currentStock),
-        minimumStock: parseInt(itemForm.minimumStock),
+        currentStock: parseInt(itemForm.currentStock) || 0,
+        minimumStock: parseInt(itemForm.minimumStock) || 0,
         expiryDate: itemForm.expiryDate || null,
         vendor: itemForm.vendor || null,
       };
@@ -199,6 +238,8 @@ export default function InventoryDashboard() {
       loadItems();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to save inventory item");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -560,10 +601,10 @@ export default function InventoryDashboard() {
                 </label>
                 <Input
                   type="text"
-                  required
                   value={itemForm.itemName}
-                  onChange={(e) => setItemForm({ ...itemForm, itemName: e.target.value })}
+                  onChange={(e) => handleFormChange("itemName", e.target.value)}
                   placeholder="e.g. Paracetamol 650mg, Latex Gloves"
+                  error={errors.itemName}
                 />
               </div>
 
@@ -574,10 +615,10 @@ export default function InventoryDashboard() {
                   </label>
                   <Input
                     type="text"
-                    required
                     value={itemForm.sku}
-                    onChange={(e) => setItemForm({ ...itemForm, sku: e.target.value })}
+                    onChange={(e) => handleFormChange("sku", e.target.value)}
                     placeholder="e.g. PCM-650"
+                    error={errors.sku}
                   />
                 </div>
                 <div>
@@ -586,7 +627,7 @@ export default function InventoryDashboard() {
                   </label>
                   <Select
                     value={itemForm.category}
-                    onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
+                    onChange={(e) => handleFormChange("category", e.target.value)}
                     options={CATEGORIES.map(c => ({ value: c, label: c }))}
                   />
                 </div>
@@ -599,7 +640,7 @@ export default function InventoryDashboard() {
                   </label>
                   <Select
                     value={itemForm.unit}
-                    onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
+                    onChange={(e) => handleFormChange("unit", e.target.value)}
                     options={UNITS.map(u => ({ value: u, label: u }))}
                   />
                 </div>
@@ -612,7 +653,8 @@ export default function InventoryDashboard() {
                     min="0"
                     disabled={itemModalMode === "edit"}
                     value={itemForm.currentStock}
-                    onChange={(e) => setItemForm({ ...itemForm, currentStock: e.target.value })}
+                    onChange={(e) => handleFormChange("currentStock", e.target.value)}
+                    error={errors.currentStock}
                   />
                 </div>
                 <div>
@@ -623,7 +665,8 @@ export default function InventoryDashboard() {
                     type="number"
                     min="0"
                     value={itemForm.minimumStock}
-                    onChange={(e) => setItemForm({ ...itemForm, minimumStock: e.target.value })}
+                    onChange={(e) => handleFormChange("minimumStock", e.target.value)}
+                    error={errors.minimumStock}
                   />
                 </div>
               </div>
@@ -635,7 +678,7 @@ export default function InventoryDashboard() {
                 <Input
                   type="date"
                   value={itemForm.expiryDate}
-                  onChange={(e) => setItemForm({ ...itemForm, expiryDate: e.target.value })}
+                  onChange={(e) => handleFormChange("expiryDate", e.target.value)}
                 />
               </div>
 
@@ -646,7 +689,7 @@ export default function InventoryDashboard() {
                 <Input
                   type="text"
                   value={itemForm.vendor}
-                  onChange={(e) => setItemForm({ ...itemForm, vendor: e.target.value })}
+                  onChange={(e) => handleFormChange("vendor", e.target.value)}
                   placeholder="e.g. Pfizer Inc., General Diagnostics"
                 />
               </div>
@@ -655,7 +698,7 @@ export default function InventoryDashboard() {
                 <Button variant="secondary" type="button" onClick={() => setShowItemModal(false)}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit">
+                <Button variant="primary" type="submit" loading={submitting}>
                   {itemModalMode === "create" ? "Add Item" : "Save Changes"}
                 </Button>
               </div>

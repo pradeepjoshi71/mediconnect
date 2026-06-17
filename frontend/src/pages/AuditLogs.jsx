@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import hospitalService from '../services/hospitalService';
+import { PageHeader } from "../components/ui/PageHeader";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Select } from "../components/ui/Select";
+import { Badge } from "../components/ui/Badge";
+import { PaginatedTable } from "../components/ui/PaginatedTable";
 
 const ACTION_LABELS = {
   LOGIN: 'Login',
@@ -49,306 +55,180 @@ export default function AuditLogs() {
     fetchLogs();
   };
 
-  return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Audit Logs</h1>
-          <p style={styles.subtitle}>{total.toLocaleString()} events recorded</p>
+  const columns = [
+    {
+      key: "time",
+      label: "Time",
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+          {new Date(row.createdAt).toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: "action",
+      label: "Action",
+      render: (row) => (
+        <Badge tone="brand" className="font-semibold text-xs">
+          {ACTION_LABELS[row.action] || row.action}
+        </Badge>
+      ),
+    },
+    {
+      key: "user",
+      label: "User",
+      render: (row) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-slate-900 dark:text-white">{row.userName || "—"}</span>
+          {row.userEmail && <span className="text-[10px] text-slate-405 dark:text-slate-500">{row.userEmail}</span>}
         </div>
-      </div>
+      ),
+    },
+    {
+      key: "role",
+      label: "Role",
+      render: (row) => (
+        <Badge tone={row.actorRole === "doctor" ? "teal" : row.actorRole === "super_admin" || row.actorRole === "hospital_admin" ? "brand" : "slate"} className="capitalize text-[10px]">
+          {row.actorRole?.replace("_", " ") || "—"}
+        </Badge>
+      ),
+    },
+    {
+      key: "entity",
+      label: "Entity",
+      render: (row) => (
+        row.entityType ? (
+          <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+            {row.entityType} #{row.entityId}
+          </span>
+        ) : "—"
+      ),
+    },
+    {
+      key: "ip",
+      label: "IP Address",
+      render: (row) => (
+        <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+          {row.ipAddress || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{
+              backgroundColor: STATUS_COLORS[row.status] || "#64748b",
+            }}
+          />
+          <span className="text-xs font-semibold">
+            {row.status?.toLowerCase()}
+          </span>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-8 pb-12">
+      <PageHeader
+        eyebrow="Security & Audit"
+        title="System Audit Trail"
+        description={`Review chronological records of administrative events, authentications, and clinical updates. (${total.toLocaleString()} events recorded)`}
+      />
 
       {/* Filters */}
-      <form onSubmit={handleFilter} style={styles.filterBar}>
-        <select
-          value={filters.action}
-          onChange={(e) => setFilters(f => ({ ...f, action: e.target.value }))}
-          style={styles.select}
-        >
-          <option value="">All Actions</option>
-          <option value="LOGIN">Login</option>
-          <option value="LOGOUT">Logout</option>
-          <option value="department.created">Department Created</option>
-          <option value="seed.account.provisioned">Account Provisioned</option>
-        </select>
-        <input
-          type="date"
-          value={filters.from}
-          onChange={(e) => setFilters(f => ({ ...f, from: e.target.value }))}
-          style={styles.input}
-          placeholder="From date"
-        />
-        <input
-          type="date"
-          value={filters.to}
-          onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))}
-          style={styles.input}
-          placeholder="To date"
-        />
-        <button type="submit" style={styles.filterBtn}>Apply</button>
-        <button type="button" onClick={() => { setFilters({ action: '', from: '', to: '' }); setPage(1); }} style={styles.clearBtn}>
-          Clear
-        </button>
+      <form onSubmit={handleFilter} className="flex flex-wrap items-center gap-3 rounded-[24px] border border-slate-200/50 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
+        <div className="w-full sm:w-48">
+          <Select
+            value={filters.action}
+            onChange={(e) => setFilters(f => ({ ...f, action: e.target.value }))}
+            options={[
+              { value: "", label: "All Actions" },
+              { value: "LOGIN", label: "Login" },
+              { value: "LOGOUT", label: "Logout" },
+              { value: "department.created", label: "Department Created" },
+              { value: "seed.account.provisioned", label: "Account Provisioned" }
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-40">
+          <Input
+            type="date"
+            value={filters.from}
+            onChange={(e) => setFilters(f => ({ ...f, from: e.target.value }))}
+            placeholder="From Date"
+          />
+        </div>
+        <div className="w-full sm:w-40">
+          <Input
+            type="date"
+            value={filters.to}
+            onChange={(e) => setFilters(f => ({ ...f, to: e.target.value }))}
+            placeholder="To Date"
+          />
+        </div>
+        <Button variant="primary" type="submit" className="h-11">
+          Apply Filters
+        </Button>
+        {(filters.action || filters.from || filters.to) && (
+          <Button
+            variant="ghost"
+            type="button"
+            className="text-xs font-semibold text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+            onClick={() => {
+              setFilters({ action: "", from: "", to: "" });
+              setPage(1);
+            }}
+          >
+            Clear
+          </Button>
+        )}
       </form>
 
       {/* Table */}
-      <div style={styles.tableWrapper}>
-        {loading ? (
-          <div style={styles.loading}>Loading…</div>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                {['Time', 'Action', 'User', 'Role', 'Entity', 'IP', 'Status'].map(h => (
-                  <th key={h} style={styles.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {logs.length === 0 ? (
-                <tr><td colSpan={7} style={styles.empty}>No audit logs found</td></tr>
-              ) : logs.map((log) => (
-                <tr key={log.id} style={styles.tr}>
-                  <td style={styles.td}>
-                    <span style={styles.timeText}>
-                      {new Date(log.createdAt).toLocaleString()}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={styles.actionBadge}>
-                      {ACTION_LABELS[log.action] || log.action}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.userCell}>
-                      <span style={styles.userName}>{log.userName || '—'}</span>
-                      {log.userEmail && <span style={styles.userEmail}>{log.userEmail}</span>}
-                    </div>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={styles.roleBadge}>{log.actorRole || '—'}</span>
-                  </td>
-                  <td style={styles.td}>
-                    {log.entityType && (
-                      <span style={styles.entityText}>{log.entityType} #{log.entityId}</span>
-                    )}
-                  </td>
-                  <td style={styles.td}>
-                    <span style={styles.ipText}>{log.ipAddress || '—'}</span>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.statusDot,
-                      background: STATUS_COLORS[log.status] || '#64748b',
-                    }} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <div className="rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-card backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/85">
+        <PaginatedTable
+          rows={logs}
+          columns={columns}
+          loading={loading}
+          pageSize={50} // Use backend-supplied limit
+        />
       </div>
 
       {/* Pagination */}
       {total > 50 && (
-        <div style={styles.pagination}>
-          <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={styles.pageBtn}
-          >← Prev</button>
-          <span style={styles.pageInfo}>Page {page} of {Math.ceil(total / 50)}</span>
-          <button
-            onClick={() => setPage(p => p + 1)}
-            disabled={page >= Math.ceil(total / 50)}
-            style={styles.pageBtn}
-          >Next →</button>
+        <div className="flex items-center justify-between px-5 py-4 border border-slate-200/40 bg-white/80 dark:border-neutral-200/10 dark:bg-neutral-100/70 rounded-2xl shadow-sm">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Showing Page {page} of {Math.ceil(total / 50)} ({total.toLocaleString()} total entries)
+          </div>
+          <div className="flex gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => {
+                setPage((p) => Math.max(1, p - 1));
+              }}
+            >
+              ← Prev
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= Math.ceil(total / 50)}
+              onClick={() => {
+                setPage((p) => p + 1);
+              }}
+            >
+              Next →
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    padding: '32px',
-    background: '#0f172a',
-    minHeight: '100vh',
-    fontFamily: "'Inter', sans-serif",
-    color: '#e2e8f0',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '24px',
-  },
-  title: {
-    fontSize: '28px',
-    fontWeight: 700,
-    color: '#f8fafc',
-    margin: 0,
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    marginTop: '4px',
-  },
-  filterBar: {
-    display: 'flex',
-    gap: '12px',
-    marginBottom: '20px',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-  },
-  select: {
-    background: '#1e293b',
-    border: '1px solid #334155',
-    borderRadius: '8px',
-    color: '#e2e8f0',
-    padding: '8px 12px',
-    fontSize: '14px',
-    cursor: 'pointer',
-  },
-  input: {
-    background: '#1e293b',
-    border: '1px solid #334155',
-    borderRadius: '8px',
-    color: '#e2e8f0',
-    padding: '8px 12px',
-    fontSize: '14px',
-  },
-  filterBtn: {
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    border: 'none',
-    borderRadius: '8px',
-    color: '#fff',
-    padding: '8px 18px',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  clearBtn: {
-    background: '#1e293b',
-    border: '1px solid #334155',
-    borderRadius: '8px',
-    color: '#94a3b8',
-    padding: '8px 14px',
-    fontSize: '14px',
-    cursor: 'pointer',
-  },
-  tableWrapper: {
-    background: '#1e293b',
-    borderRadius: '12px',
-    border: '1px solid #334155',
-    overflow: 'hidden',
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '40px',
-    color: '#94a3b8',
-    fontSize: '16px',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-  },
-  th: {
-    padding: '12px 16px',
-    textAlign: 'left',
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    borderBottom: '1px solid #334155',
-    background: '#0f172a',
-  },
-  tr: {
-    borderBottom: '1px solid #1e293b',
-    transition: 'background 0.15s',
-  },
-  td: {
-    padding: '12px 16px',
-    fontSize: '13px',
-    verticalAlign: 'middle',
-  },
-  timeText: {
-    color: '#94a3b8',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-  },
-  actionBadge: {
-    background: 'rgba(99,102,241,0.15)',
-    color: '#818cf8',
-    borderRadius: '6px',
-    padding: '3px 8px',
-    fontSize: '12px',
-    fontWeight: 600,
-  },
-  userCell: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  userName: {
-    color: '#e2e8f0',
-    fontWeight: 500,
-    fontSize: '13px',
-  },
-  userEmail: {
-    color: '#64748b',
-    fontSize: '11px',
-  },
-  roleBadge: {
-    background: 'rgba(34,197,94,0.1)',
-    color: '#4ade80',
-    borderRadius: '4px',
-    padding: '2px 6px',
-    fontSize: '11px',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-  },
-  entityText: {
-    color: '#94a3b8',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-  },
-  ipText: {
-    color: '#64748b',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-  },
-  statusDot: {
-    display: 'inline-block',
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-  },
-  empty: {
-    textAlign: 'center',
-    padding: '40px',
-    color: '#64748b',
-    fontSize: '14px',
-  },
-  pagination: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '16px',
-    marginTop: '20px',
-  },
-  pageBtn: {
-    background: '#1e293b',
-    border: '1px solid #334155',
-    borderRadius: '8px',
-    color: '#e2e8f0',
-    padding: '8px 16px',
-    fontSize: '13px',
-    cursor: 'pointer',
-  },
-  pageInfo: {
-    color: '#94a3b8',
-    fontSize: '13px',
-  },
-};

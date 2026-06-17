@@ -64,6 +64,19 @@ export default function BusinessDashboard() {
     description: "",
     expenseDate: new Date().toISOString().slice(0, 10),
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const handleFormChange = (field, value) => {
+    setFormData(current => ({ ...current, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   // Fetch Revenue Dashboard data
   const loadRevenue = async () => {
@@ -129,6 +142,7 @@ export default function BusinessDashboard() {
       description: "",
       expenseDate: new Date().toISOString().slice(0, 10),
     });
+    setErrors({});
     setShowModal(true);
   };
 
@@ -142,21 +156,37 @@ export default function BusinessDashboard() {
       description: expense.description || "",
       expenseDate: new Date(expense.expenseDate).toISOString().slice(0, 10),
     });
+    setErrors({});
     setShowModal(true);
   };
 
   // Submit Expense Form
   const handleSubmitExpense = async (e) => {
     e.preventDefault();
-    if (!formData.category || !formData.amount) {
-      toast.error("Please fill in category and amount");
+
+    const formErrors = {};
+    if (!formData.category) {
+      formErrors.category = "Category is required";
+    }
+    const amt = parseFloat(formData.amount);
+    if (!formData.amount || isNaN(amt) || amt <= 0) {
+      formErrors.amount = "Amount must be a positive number greater than 0";
+    }
+    if (!formData.expenseDate) {
+      formErrors.expenseDate = "Expense date is required";
+    }
+
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      toast.error("Please fill in all required fields correctly.");
       return;
     }
 
+    setSubmitting(true);
     try {
       const payload = {
         category: formData.category,
-        amount: parseFloat(formData.amount),
+        amount: amt,
         description: formData.description,
         expenseDate: formData.expenseDate,
       };
@@ -171,7 +201,9 @@ export default function BusinessDashboard() {
       setShowModal(false);
       loadExpenses();
     } catch (err) {
-      toast.error("Failed to save expense details");
+      toast.error(err.response?.data?.message || "Failed to save expense details");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -223,7 +255,7 @@ export default function BusinessDashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-12">
       <PageHeader
         eyebrow="Business Operations"
         title="Clinic Finance Console"
@@ -559,8 +591,9 @@ export default function BusinessDashboard() {
                 </label>
                 <Select
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  onChange={(e) => handleFormChange("category", e.target.value)}
                   options={EXPENSE_CATEGORIES.map(c => ({ value: c, label: c }))}
+                  error={errors.category}
                 />
               </div>
 
@@ -571,11 +604,10 @@ export default function BusinessDashboard() {
                 <Input
                   type="number"
                   step="0.01"
-                  min="0.01"
-                  required
                   value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  onChange={(e) => handleFormChange("amount", e.target.value)}
                   placeholder="0.00"
+                  error={errors.amount}
                 />
               </div>
 
@@ -585,9 +617,9 @@ export default function BusinessDashboard() {
                 </label>
                 <Input
                   type="date"
-                  required
                   value={formData.expenseDate}
-                  onChange={(e) => setFormData({ ...formData, expenseDate: e.target.value })}
+                  onChange={(e) => handleFormChange("expenseDate", e.target.value)}
+                  error={errors.expenseDate}
                 />
               </div>
 
@@ -599,7 +631,7 @@ export default function BusinessDashboard() {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-sm focus:border-brand-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950/50 dark:text-white"
                   rows="3"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) => handleFormChange("description", e.target.value)}
                   placeholder="Rent for clinic premises, internet bills, etc."
                 />
               </div>
@@ -608,7 +640,7 @@ export default function BusinessDashboard() {
                 <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>
                   Cancel
                 </Button>
-                <Button variant="primary" type="submit">
+                <Button variant="primary" type="submit" loading={submitting}>
                   {modalMode === "create" ? "Log Record" : "Save Changes"}
                 </Button>
               </div>

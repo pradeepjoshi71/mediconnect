@@ -73,6 +73,7 @@ function buildNavItems(role, path = "", permissions = []) {
       { to: "/admin/billing", label: "Billing", icon: CreditCard, permission: "record_payments" },
       { to: "/admin/reports", label: "Reports", icon: TrendingUp, permission: "view_reports" },
       { to: "/admin/business", label: "Business Analytics", icon: DollarSign, permission: "view_analytics" },
+      { to: "/admin/pmjay-dashboard", label: "PM-JAY Analytics", icon: ShieldCheck, permission: "pmjay.analytics.read" },
       { to: "/admin/inventory", label: "Inventory", icon: Package, permission: "manage_inventory" },
       { to: "/admin/departments", label: "Departments", icon: Building2, permission: "department.read" },
     ];

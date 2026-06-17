@@ -8,6 +8,7 @@ const accentClasses = {
   success: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
   amber: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
   rose: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400",
+  danger: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400",
 };
 
 export function KpiCard({
@@ -16,13 +17,15 @@ export function KpiCard({
   value,
   trend, // e.g. { value: "12%", isPositive: true }
   description, // e.g. "vs last month"
+  helper, // alternative description text for compatibility with StatCard
   accent = "brand",
   className,
 }) {
   const badgeColor = accentClasses[accent] || accentClasses.brand;
+  const displayDescription = description || helper;
 
   return (
-    <Card className={cn("overflow-hidden group hover:scale-[1.01] active:scale-[0.99]", className)}>
+    <Card className={cn("overflow-hidden group hover:scale-[1.01] active:scale-[0.99] hover:shadow-premium-glow transition-all duration-300", className)}>
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
@@ -34,7 +37,7 @@ export function KpiCard({
         </div>
 
         <div className="mt-4 flex items-baseline gap-2.5">
-          <span className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <span className="text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white">
             {value}
           </span>
           
@@ -57,12 +60,13 @@ export function KpiCard({
           )}
         </div>
 
-        {description && (
-          <p className="mt-2 text-xs font-medium text-slate-400 dark:text-slate-500">
-            {description}
+        {displayDescription && (
+          <p className="mt-2 text-xs font-medium text-slate-450 dark:text-slate-500">
+            {displayDescription}
           </p>
         )}
       </CardContent>
     </Card>
   );
 }
+

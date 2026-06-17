@@ -44,6 +44,11 @@ const betaFeedbackRoutes = require("./routes/betaFeedback");
 const businessRoutes = require("./routes/businessRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const departmentRoutes = require("./routes/departmentRoutes");
+const abhaRoutes         = require("./routes/abhaRoutes");
+const abdmConsentRoutes     = require("./routes/abdmConsentRoutes");
+const abdmCareContextRoutes    = require("./routes/abdmCareContextRoutes");
+const healthRecordExchangeRoutes = require("./routes/healthRecordExchangeRoutes");
+const pmjayRoutes                = require("./routes/pmjayRoutes");
 const minioService = require("./services/minioService");
 const backupScheduler = require("./services/backupScheduler");
 const dbBackup = require("./jobs/dbBackup");
@@ -212,6 +217,21 @@ app.use("/api/fhir", require("./fhir/routes/fhirRoutes"));
 
 // Insurance Claims Module
 app.use("/api/v1/insurance", require("./insurance/routes/insuranceRoutes"));
+
+// Phase 9 — ABHA Integration
+app.use("/api/v1/abha", abhaRoutes);
+
+// Phase 10.1 — ABDM Consent Management
+app.use("/api/v1/abdm/consent", abdmConsentRoutes);
+
+// Phase 10.2 — ABDM Care Context Linking
+app.use("/api/v1/abdm/care-context", abdmCareContextRoutes);
+
+// Phase 10.3 — ABDM Health Record Exchange Foundation
+app.use("/api/v1/health-record", healthRecordExchangeRoutes);
+
+// Phase 11.1 — PM-JAY Beneficiary Eligibility Foundation
+app.use("/api/v1/pmjay", pmjayRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 app.get("/api-docs.json", (_req, res) => res.json(swaggerSpec));

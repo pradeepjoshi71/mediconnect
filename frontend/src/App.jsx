@@ -50,6 +50,7 @@ import AdminBranding from "./pages/AdminBranding";
 import AdminDepartments from "./pages/AdminDepartments";
 import BusinessDashboard from "./pages/BusinessDashboard";
 import InventoryDashboard from "./pages/InventoryDashboard";
+import PmjayDashboard from "./pages/PmjayDashboard";
 import { BrandingProvider } from "./contexts/BrandingContext";
 
 // Doctor Pages
@@ -232,6 +233,10 @@ export default function App() {
 
               <Route element={<PermissionRoute requiredPermission="department.read" />}>
                 <Route path="/admin/departments" element={<AdminDepartments />} />
+              </Route>
+
+              <Route element={<PermissionRoute requiredPermission="pmjay.analytics.read" />}>
+                <Route path="/admin/pmjay-dashboard" element={<PmjayDashboard />} />
               </Route>
             </Route>
           </Route>

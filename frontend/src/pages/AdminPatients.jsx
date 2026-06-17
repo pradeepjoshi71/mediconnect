@@ -26,7 +26,11 @@ import {
   listPatients,
   createPatient,
   updatePatient,
-  getPatientSummary
+  getPatientSummary,
+  getAbhaDetails,
+  linkAbha,
+  verifyAbha,
+  unlinkAbha,
 } from "../services/patientService";
 import {
   getMedicalHistory,
@@ -39,6 +43,28 @@ import {
   downloadDocument
 } from "../services/documentService";
 import { getUser } from "../services/session";
+import {
+  getPatientConsents,
+  grantConsent,
+  revokeConsent as revokePatientConsent,
+} from "../services/abdmConsentService";
+import {
+  getCareContexts,
+  linkCareContext,
+  unlinkCareContext as unlinkPatientCareContext,
+} from "../services/abdmCareContextService";
+import {
+  getPmjayDetails,
+  linkPmjay,
+  verifyPmjay,
+  unlinkPmjay,
+} from "../services/pmjayService";
+import {
+  getClaimsByPatient,
+  createClaim as createPmjayClaim,
+  submitClaim as submitPmjayClaim,
+  updateClaimStatus as updatePmjayClaimStatus,
+} from "../services/pmjayClaimService";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -170,6 +196,7 @@ export default function AdminPatients() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(initialForm);
+  const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   // Profile view states
@@ -196,9 +223,78 @@ export default function AdminPatients() {
   const [documentsList, setDocumentsList] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
+
+  // ABHA Integration States
+  const [abhaDetails, setAbhaDetails] = useState(undefined); // undefined = not loaded, null = not linked
+  const [abhaLoading, setAbhaLoading] = useState(false);
+  const [abhaError, setAbhaError] = useState(null);
+  const [abhaLinkForm, setAbhaLinkForm] = useState({ abha_number: "", abha_address: "" });
+  const [abhaLinkSubmitting, setAbhaLinkSubmitting] = useState(false);
+  const [abhaVerifySubmitting, setAbhaVerifySubmitting] = useState(false);
+  const [abhaUnlinkSubmitting, setAbhaUnlinkSubmitting] = useState(false);
+
   const currentUser = getUser();
   const isAdminOrStaff = ["super_admin", "hospital_admin", "admin", "receptionist"].includes(currentUser?.role);
   const isDoctorOrAdmin = ["doctor", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+
+  const canReadAbha   = ["doctor", "patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canLinkAbha   = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canVerifyAbha = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canUnlinkAbha = ["super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+
+  // ABDM Consent States
+  const [consentData,    setConsentData]    = useState(null);   // null = not yet loaded
+  const [consentLoading, setConsentLoading] = useState(false);
+  const [consentError,   setConsentError]   = useState(null);
+  const [consentGrantForm, setConsentGrantForm] = useState({ consent_type: "general", expires_at: "" });
+  const [consentGranting,  setConsentGranting]  = useState(false);
+  const [consentRevoking,  setConsentRevoking]  = useState(null); // stores consentId being revoked
+
+  const canReadConsent   = ["doctor", "patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canGrantConsent  = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canRevokeConsent = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+
+  // ABDM Care Context States
+  const [careContextData,    setCareContextData]    = useState(null);
+  const [careContextLoading, setCareContextLoading] = useState(false);
+  const [careContextError,   setCareContextError]   = useState(null);
+  const [careContextLinkForm, setCareContextLinkForm] = useState({ care_context_reference: "", display_name: "" });
+  const [careContextLinking,  setCareContextLinking]  = useState(false);
+  const [careContextUnlinking, setCareContextUnlinking] = useState(null); // contextId being unlinked
+
+  const canReadCareContext   = ["doctor", "patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canLinkCareContext   = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canUnlinkCareContext = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+
+  // PM-JAY States
+  const [pmjayDetails,    setPmjayDetails]    = useState(undefined); // undefined = not loaded
+  const [pmjayLoading,    setPmjayLoading]    = useState(false);
+  const [pmjayError,      setPmjayError]      = useState(null);
+  const [pmjayLinkForm,   setPmjayLinkForm]   = useState({ pmjay_id: "", beneficiary_name: "" });
+  const [pmjayLinkSubmitting,   setPmjayLinkSubmitting]   = useState(false);
+  const [pmjayVerifySubmitting, setPmjayVerifySubmitting] = useState(false);
+  const [pmjayUnlinkSubmitting, setPmjayUnlinkSubmitting] = useState(false);
+
+  const canReadPmjay   = ["doctor", "receptionist", "patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canLinkPmjay   = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canVerifyPmjay = ["patient_manager", "super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+  const canUnlinkPmjay = ["super_admin", "hospital_admin", "admin"].includes(currentUser?.role);
+
+  // PM-JAY Claim States
+  const [pmjayClaimsData,       setPmjayClaimsData]       = useState(null);
+  const [pmjayClaimsLoading,    setPmjayClaimsLoading]    = useState(false);
+  const [pmjayClaimsError,      setPmjayClaimsError]      = useState(null);
+  const [pmjayCreateForm,       setPmjayCreateForm]       = useState({ claim_amount: "", appointment_id: "" });
+  const [pmjayCreateSubmitting, setPmjayCreateSubmitting] = useState(false);
+  const [pmjaySubmitting,       setPmjaySubmitting]       = useState(null);  // claimId being submitted
+  const [pmjayStatusUpdating,   setPmjayStatusUpdating]   = useState(null);  // claimId being updated
+  const [pmjayRejectForm,       setPmjayRejectForm]       = useState({ claimId: null, reason: "" });
+
+  const canReadClaim   = ["doctor", "patient_manager", "super_admin", "hospital_admin", "admin", "billing_admin"].includes(currentUser?.role);
+  const canCreateClaim = ["patient_manager", "super_admin", "hospital_admin", "admin", "billing_admin"].includes(currentUser?.role);
+  const canSubmitClaim = ["super_admin", "hospital_admin", "admin", "billing_admin"].includes(currentUser?.role);
+  const canUpdateClaim = ["super_admin", "hospital_admin", "admin", "billing_admin"].includes(currentUser?.role);
+
 
   async function load() {
     setLoading(true);
@@ -239,12 +335,88 @@ export default function AdminPatients() {
   useEffect(() => {
     if (viewingPatientId) {
       loadProfile(viewingPatientId);
+      // Reset ABHA state when switching to a different patient
+      setAbhaDetails(undefined);
+      setAbhaError(null);
+      // Reset consent state
+      setConsentData(null);
+      setConsentError(null);
+      // Reset care context state
+      setCareContextData(null);
+      setCareContextError(null);
+      // Reset PM-JAY state
+      setPmjayDetails(undefined);
+      setPmjayError(null);
+      // Reset PM-JAY Claim state
+      setPmjayClaimsData(null);
+      setPmjayClaimsError(null);
     }
   }, [viewingPatientId]);
+
+  // Load ABHA details when the ABHA tab is activated
+  useEffect(() => {
+    if (profileTab === "abha" && viewingPatientId && canReadAbha && abhaDetails === undefined) {
+      setAbhaLoading(true);
+      setAbhaError(null);
+      getAbhaDetails(viewingPatientId)
+        .then((res) => setAbhaDetails(res.abha ?? null))
+        .catch((err) => setAbhaError(err.response?.data?.message || "Failed to load ABHA details"))
+        .finally(() => setAbhaLoading(false));
+    }
+  }, [profileTab, viewingPatientId, canReadAbha]);
+
+  // Load care contexts when the ABHA tab is activated (care context lives in ABHA tab)
+  useEffect(() => {
+    if (profileTab === "abha" && viewingPatientId && canReadCareContext && !careContextData) {
+      setCareContextLoading(true);
+      setCareContextError(null);
+      getCareContexts(viewingPatientId)
+        .then((res) => setCareContextData(res))
+        .catch((err) => setCareContextError(err.response?.data?.message || "Failed to load care contexts"))
+        .finally(() => setCareContextLoading(false));
+    }
+  }, [profileTab, viewingPatientId, canReadCareContext]);
+
+  // Load consent history when the consent tab is activated
+  useEffect(() => {
+    if (profileTab === "consent" && viewingPatientId && canReadConsent && !consentData) {
+      setConsentLoading(true);
+      setConsentError(null);
+      getPatientConsents(viewingPatientId)
+        .then((res) => setConsentData(res))
+        .catch((err) => setConsentError(err.response?.data?.message || "Failed to load consent records"))
+        .finally(() => setConsentLoading(false));
+    }
+  }, [profileTab, viewingPatientId, canReadConsent]);
+
+  // Load PM-JAY details when the PM-JAY tab is activated
+  useEffect(() => {
+    if (profileTab === "pmjay" && viewingPatientId && canReadPmjay && pmjayDetails === undefined) {
+      setPmjayLoading(true);
+      setPmjayError(null);
+      getPmjayDetails(viewingPatientId)
+        .then((res) => setPmjayDetails(res.pmjay ?? null))
+        .catch((err) => setPmjayError(err.response?.data?.message || "Failed to load PM-JAY details"))
+        .finally(() => setPmjayLoading(false));
+    }
+  }, [profileTab, viewingPatientId, canReadPmjay]);
+
+  // Load PM-JAY claims when the claims tab is activated
+  useEffect(() => {
+    if (profileTab === "pmjay-claims" && viewingPatientId && canReadClaim && !pmjayClaimsData) {
+      setPmjayClaimsLoading(true);
+      setPmjayClaimsError(null);
+      getClaimsByPatient(viewingPatientId)
+        .then((res) => setPmjayClaimsData(res.claims ?? []))
+        .catch((err) => setPmjayClaimsError(err.response?.data?.message || "Failed to load PM-JAY claims"))
+        .finally(() => setPmjayClaimsLoading(false));
+    }
+  }, [profileTab, viewingPatientId, canReadClaim]);
 
   const handleOpenAdd = () => {
     setForm(initialForm);
     setEditingId(null);
+    setErrors({});
     setOpen(true);
   };
 
@@ -270,13 +442,55 @@ export default function AdminPatients() {
       password: "",
     });
     setEditingId(patient.patient_id || patient.id);
+    setErrors({});
     setOpen(true);
+  };
+
+  const handleInputChange = (field, value) => {
+    setForm(current => ({ ...current, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.first_name || !form.last_name || !form.email) {
-      toast.error("First Name, Last Name and Email are required");
+    
+    // Validation
+    const formErrors = {};
+    if (!form.first_name || !form.first_name.trim()) {
+      formErrors.first_name = "First name is required";
+    } else if (form.first_name.trim().length < 2) {
+      formErrors.first_name = "First name must be at least 2 characters";
+    }
+
+    if (!form.last_name || !form.last_name.trim()) {
+      formErrors.last_name = "Last name is required";
+    } else if (form.last_name.trim().length < 2) {
+      formErrors.last_name = "Last name must be at least 2 characters";
+    }
+
+    if (!form.email || !form.email.trim()) {
+      formErrors.email = "Email address is required";
+    } else if (!/\S+@\S+\.\S+/.test(form.email)) {
+      formErrors.email = "Invalid email format";
+    }
+
+    if (form.phone && form.phone.trim().length > 0 && form.phone.trim().length < 8) {
+      formErrors.phone = "Phone number must be at least 8 digits";
+    }
+
+    if (form.emergency_contact_phone && form.emergency_contact_phone.trim().length > 0 && form.emergency_contact_phone.trim().length < 8) {
+      formErrors.emergency_contact_phone = "Emergency contact phone must be at least 8 digits";
+    }
+
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      toast.error("Please correct the errors on the form");
       return;
     }
 
@@ -521,13 +735,35 @@ export default function AdminPatients() {
                   {getInitials(profile.fullName)}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-2xl font-black tracking-tight text-slate-950 dark:text-white">
                       {profile.fullName}
                     </h2>
                     <Badge tone={profile.status === "active" ? "teal" : "red"}>
                       {profile.status === "active" ? "Active" : "Inactive"}
                     </Badge>
+                    {/* ABHA status badge — shown only when data is available */}
+                    {abhaDetails !== undefined && (
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          abhaDetails?.verificationStatus === "verified"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40"
+                            : abhaDetails
+                            ? "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40"
+                            : "bg-slate-100 text-slate-500 border border-slate-200 dark:bg-neutral-200/5 dark:text-neutral-500 dark:border-neutral-200/10"
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          abhaDetails?.verificationStatus === "verified" ? "bg-emerald-500" :
+                          abhaDetails ? "bg-amber-500" : "bg-slate-400"
+                        }`} />
+                        {abhaDetails?.verificationStatus === "verified"
+                          ? "ABHA Verified"
+                          : abhaDetails
+                          ? `ABHA ${abhaDetails.verificationStatus}`
+                          : "ABHA Not Linked"}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-neutral-500">
                     <span className="font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-neutral-100/40 px-2 py-0.5 rounded-lg">
@@ -569,7 +805,11 @@ export default function AdminPatients() {
             { id: "overview", label: "Overview & Timeline" },
             { id: "emr", label: "Clinical EMR" },
             { id: "allergies", label: "Allergies & Medications" },
-            { id: "documents", label: "Medical Files" }
+            { id: "documents", label: "Medical Files" },
+            ...(canReadAbha    ? [{ id: "abha",    label: "ABHA Identity" }]    : []),
+            ...(canReadConsent ? [{ id: "consent", label: "ABDM Consent" }]     : []),
+            ...(canReadPmjay  ? [{ id: "pmjay",        label: "PM-JAY" }]           : []),
+            ...(canReadClaim  ? [{ id: "pmjay-claims", label: "PM-JAY Claims" }]    : []),
           ].map((tab) => (
             <button
               key={tab.id}
@@ -990,6 +1230,1156 @@ export default function AdminPatients() {
           </div>
         )}
 
+        {/* ABHA Identity Tab */}
+        {profileTab === "abha" && canReadAbha && (
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            {/* Current ABHA Status Card */}
+            <Card className="rounded-[24px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-emerald-500" />
+                  ABHA Identity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {abhaLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-10 w-1/2" />
+                  </div>
+                ) : abhaError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    {abhaError}
+                  </div>
+                ) : abhaDetails ? (
+                  <div className="space-y-4">
+                    {/* ABHA Number */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">ABHA Number</div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="text-lg font-black font-mono tracking-widest text-slate-900 dark:text-white">
+                          {abhaDetails.abhaNumberMasked || "—"}
+                        </span>
+                        <Badge
+                          tone={
+                            abhaDetails.verificationStatus === "verified" ? "teal" :
+                            abhaDetails.verificationStatus === "failed"   ? "red"  : "yellow"
+                          }
+                        >
+                          {abhaDetails.verificationStatus.charAt(0).toUpperCase() + abhaDetails.verificationStatus.slice(1)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* ABHA Address */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">ABHA Address (PHR)</div>
+                      <div className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                        {abhaDetails.abhaAddress || <span className="text-slate-400 dark:text-neutral-500">Not provided</span>}
+                      </div>
+                    </div>
+
+                    {/* Verified At */}
+                    {abhaDetails.verifiedAt && (
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 dark:border-emerald-900/30 dark:bg-emerald-950/10">
+                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Verified On</div>
+                        <div className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+                          {formatDateTime(abhaDetails.verifiedAt)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Linked on */}
+                    <div className="text-xs text-slate-400 dark:text-neutral-500">
+                      Linked on {formatDateTime(abhaDetails.createdAt)}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 dark:border-neutral-200/5">
+                      {canVerifyAbha && abhaDetails.verificationStatus !== "verified" && (
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                          loading={abhaVerifySubmitting}
+                          onClick={async () => {
+                            setAbhaVerifySubmitting(true);
+                            try {
+                              const res = await verifyAbha(viewingPatientId, { verification_status: "verified" });
+                              setAbhaDetails(res.abha);
+                              toast.success("ABHA marked as verified");
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || "Failed to verify ABHA");
+                            } finally {
+                              setAbhaVerifySubmitting(false);
+                            }
+                          }}
+                        >
+                          Mark as Verified
+                        </Button>
+                      )}
+                      {canUnlinkAbha && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-950/20 rounded-xl"
+                          loading={abhaUnlinkSubmitting}
+                          onClick={async () => {
+                            if (!window.confirm(`Unlink ABHA number ${abhaDetails.abhaNumberMasked} from this patient? This cannot be undone.`)) return;
+                            setAbhaUnlinkSubmitting(true);
+                            try {
+                              await unlinkAbha(viewingPatientId);
+                              setAbhaDetails(null);
+                              toast.success("ABHA number unlinked successfully");
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || "Failed to unlink ABHA");
+                            } finally {
+                              setAbhaUnlinkSubmitting(false);
+                            }
+                          }}
+                        >
+                          Unlink ABHA
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-neutral-200/5">
+                      <Shield className="h-7 w-7 text-slate-400 dark:text-neutral-500" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No ABHA number linked</p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">Link the patient's Ayushman Bharat Health Account ID using the form.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Link ABHA Form — shown only when not yet linked and user has permission */}
+            {canLinkAbha && !abhaDetails && !abhaLoading && (
+              <Card className="rounded-[24px]">
+                <CardHeader>
+                  <CardTitle>Link ABHA Number</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="space-y-4"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const raw = abhaLinkForm.abha_number.trim().replace(/[-\s]/g, "");
+                      if (!/^\d{14}$/.test(raw)) {
+                        toast.error("ABHA number must be exactly 14 digits");
+                        return;
+                      }
+                      setAbhaLinkSubmitting(true);
+                      try {
+                        const res = await linkAbha(viewingPatientId, {
+                          abha_number: raw,
+                          abha_address: abhaLinkForm.abha_address.trim() || undefined,
+                        });
+                        setAbhaDetails(res.abha);
+                        setAbhaLinkForm({ abha_number: "", abha_address: "" });
+                        toast.success("ABHA number linked successfully");
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to link ABHA number");
+                      } finally {
+                        setAbhaLinkSubmitting(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        ABHA Number <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        placeholder="e.g. 91234567890123 or 91-2345-6789-0123"
+                        value={abhaLinkForm.abha_number}
+                        onChange={(e) => setAbhaLinkForm((f) => ({ ...f, abha_number: e.target.value }))}
+                        required
+                        maxLength={18}
+                        className="mt-1 font-mono tracking-wider"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        14-digit national health ID. Hyphens are accepted and will be stripped automatically.
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        ABHA Address (PHR Address)
+                      </span>
+                      <Input
+                        placeholder="e.g. patient.name@abdm"
+                        value={abhaLinkForm.abha_address}
+                        onChange={(e) => setAbhaLinkForm((f) => ({ ...f, abha_address: e.target.value }))}
+                        className="mt-1"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        Optional. Personal Health Record address ending with @abdm.
+                      </p>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      loading={abhaLinkSubmitting}
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl"
+                    >
+                      <Shield className="h-4 w-4" /> Link ABHA Number
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Care Context Section — rendered below ABHA tab content when ABHA tab is active */}
+        {profileTab === "abha" && canReadCareContext && (
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            {/* Linked Contexts List */}
+            <Card className="rounded-[24px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-brand-600" />
+                  Care Contexts
+                  {careContextData?.activeCount > 0 && (
+                    <span className="ml-auto rounded-full bg-brand-100 px-2 py-0.5 text-xs font-bold text-brand-700 dark:bg-brand-900/30 dark:text-brand-400">
+                      {careContextData.activeCount} active
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {careContextLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : careContextError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    {careContextError}
+                  </div>
+                ) : careContextData?.careContexts?.length ? (
+                  <div className="space-y-3">
+                    {careContextData.careContexts.map((ctx) => (
+                      <div
+                        key={ctx.id}
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {ctx.displayName}
+                            </span>
+                            <Badge tone={ctx.status === "active" ? "teal" : "red"}>
+                              {ctx.status.charAt(0).toUpperCase() + ctx.status.slice(1)}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 font-mono text-xs text-slate-400 dark:text-neutral-500 truncate">
+                            {ctx.careContextReference}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                            Linked: {formatDateTime(ctx.linkedAt)}
+                          </div>
+                        </div>
+                        {canUnlinkCareContext && ctx.status === "active" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="shrink-0 border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-950/20 rounded-xl"
+                            loading={careContextUnlinking === ctx.id}
+                            onClick={async () => {
+                              if (!window.confirm(`Unlink care context "${ctx.displayName}"? This cannot be undone.`)) return;
+                              setCareContextUnlinking(ctx.id);
+                              try {
+                                await unlinkPatientCareContext({ context_id: ctx.id, patient_id: viewingPatientId });
+                                const res = await getCareContexts(viewingPatientId);
+                                setCareContextData(res);
+                                toast.success("Care context unlinked");
+                              } catch (err) {
+                                toast.error(err.response?.data?.message || "Failed to unlink care context");
+                              } finally {
+                                setCareContextUnlinking(null);
+                              }
+                            }}
+                          >
+                            Unlink
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-neutral-200/5">
+                      <Activity className="h-6 w-6 text-slate-400 dark:text-neutral-500" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No care contexts linked</p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">Link a care context to enable ABDM Health Information Exchange.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Link Care Context Form */}
+            {canLinkCareContext && (
+              <Card className="rounded-[24px]">
+                <CardHeader>
+                  <CardTitle>Link Care Context</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="space-y-4"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const ref = careContextLinkForm.care_context_reference.trim();
+                      const name = careContextLinkForm.display_name.trim();
+                      if (!ref || !name) {
+                        toast.error("Reference and display name are required");
+                        return;
+                      }
+                      if (!/^[A-Za-z0-9_\-:.]+$/.test(ref)) {
+                        toast.error("Reference may only contain letters, digits, underscores, hyphens, colons, and dots");
+                        return;
+                      }
+                      setCareContextLinking(true);
+                      try {
+                        await linkCareContext({
+                          patient_id:             viewingPatientId,
+                          care_context_reference: ref,
+                          display_name:           name,
+                          abha_id:                abhaDetails?.id || undefined,
+                        });
+                        const res = await getCareContexts(viewingPatientId);
+                        setCareContextData(res);
+                        setCareContextLinkForm({ care_context_reference: "", display_name: "" });
+                        toast.success("Care context linked successfully");
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to link care context");
+                      } finally {
+                        setCareContextLinking(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Context Reference <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        placeholder="e.g. DISCHARGE_2024_01_15_001"
+                        value={careContextLinkForm.care_context_reference}
+                        onChange={(e) => setCareContextLinkForm((f) => ({ ...f, care_context_reference: e.target.value }))}
+                        required
+                        maxLength={100}
+                        className="mt-1 font-mono text-sm"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        Unique ABDM identifier for this care encounter. Letters, digits, _ - : . only.
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Display Name <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        placeholder="e.g. Discharge Summary – Jan 2024"
+                        value={careContextLinkForm.display_name}
+                        onChange={(e) => setCareContextLinkForm((f) => ({ ...f, display_name: e.target.value }))}
+                        required
+                        maxLength={200}
+                        className="mt-1"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        Human-readable name shown in ABDM health apps.
+                      </p>
+                    </div>
+
+                    {abhaDetails && (
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/10 dark:text-emerald-400">
+                        Will be linked to ABHA: <span className="font-mono font-bold">{abhaDetails.abhaNumberMasked}</span>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      loading={careContextLinking}
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl"
+                    >
+                      <Activity className="h-4 w-4" /> Link Care Context
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ABDM Consent Tab */}
+        {profileTab === "consent" && canReadConsent && (
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            {/* Consent History Card */}
+            <Card className="rounded-[24px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-brand-600" />
+                  Consent History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {consentLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : consentError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    {consentError}
+                  </div>
+                ) : consentData?.consents?.length ? (
+                  <div className="space-y-3">
+                    {consentData.consents.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white capitalize">
+                              {c.consentType.replace(/_/g, " ")}
+                            </span>
+                            <Badge
+                              tone={
+                                c.status === "granted" && c.isActive ? "teal" :
+                                c.status === "revoked"              ? "red"   :
+                                c.status === "expired"              ? "yellow" : "neutral"
+                              }
+                            >
+                              {c.isActive ? "Active" : c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                            </Badge>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-neutral-500">
+                            {c.grantedAt  && <span>Granted: {formatDateTime(c.grantedAt)}</span>}
+                            {c.revokedAt  && <span>Revoked: {formatDateTime(c.revokedAt)}</span>}
+                            {c.expiresAt  && <span>Expires: {formatDateTime(c.expiresAt)}</span>}
+                          </div>
+                        </div>
+                        {canRevokeConsent && c.isActive && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="shrink-0 border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-950/20 rounded-xl"
+                            loading={consentRevoking === c.id}
+                            onClick={async () => {
+                              if (!window.confirm(`Revoke ${c.consentType.replace(/_/g, " ")} consent? This cannot be undone.`)) return;
+                              setConsentRevoking(c.id);
+                              try {
+                                await revokePatientConsent({ consent_id: c.id, patient_id: viewingPatientId });
+                                const res = await getPatientConsents(viewingPatientId);
+                                setConsentData(res);
+                                toast.success("Consent revoked successfully");
+                              } catch (err) {
+                                toast.error(err.response?.data?.message || "Failed to revoke consent");
+                              } finally {
+                                setConsentRevoking(null);
+                              }
+                            }}
+                          >
+                            Revoke
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-neutral-200/5">
+                      <Shield className="h-7 w-7 text-slate-400 dark:text-neutral-500" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No consent records found</p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">Grant a consent using the form to get started.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Grant Consent Form */}
+            {canGrantConsent && (
+              <Card className="rounded-[24px]">
+                <CardHeader>
+                  <CardTitle>Grant Consent</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="space-y-4"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      setConsentGranting(true);
+                      try {
+                        await grantConsent({
+                          patient_id:   viewingPatientId,
+                          consent_type: consentGrantForm.consent_type,
+                          expires_at:   consentGrantForm.expires_at
+                            ? new Date(consentGrantForm.expires_at).toISOString()
+                            : undefined,
+                        });
+                        const res = await getPatientConsents(viewingPatientId);
+                        setConsentData(res);
+                        setConsentGrantForm({ consent_type: "general", expires_at: "" });
+                        toast.success("Consent granted successfully");
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to grant consent");
+                      } finally {
+                        setConsentGranting(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Consent Type <span className="text-red-500">*</span>
+                      </span>
+                      <Select
+                        value={consentGrantForm.consent_type}
+                        onChange={(e) => setConsentGrantForm((f) => ({ ...f, consent_type: e.target.value }))}
+                        className="mt-1"
+                      >
+                        <option value="general">General ABDM Consent</option>
+                        <option value="data_access">Data Access</option>
+                        <option value="health_record_share">Health Record Share</option>
+                        <option value="telemedicine">Telemedicine</option>
+                        <option value="research">Research Use</option>
+                        <option value="emergency_access">Emergency Access</option>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Expiry Date <span className="text-slate-400">(optional)</span>
+                      </span>
+                      <Input
+                        type="datetime-local"
+                        value={consentGrantForm.expires_at}
+                        onChange={(e) => setConsentGrantForm((f) => ({ ...f, expires_at: e.target.value }))}
+                        className="mt-1"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        Leave blank for indefinite consent.
+                      </p>
+                    </div>
+
+                    {/* Active consent status chips */}
+                    {consentData?.activeSummary && (
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-3 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+                          Currently Active
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(consentData.activeSummary).map(([type, active]) => (
+                            <span
+                              key={type}
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                active
+                                  ? "bg-teal-50 text-teal-700 border border-teal-200 dark:bg-teal-950/30 dark:text-teal-400"
+                                  : "bg-slate-100 text-slate-400 border border-slate-200 dark:bg-neutral-200/5 dark:text-neutral-500"
+                              }`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-teal-500" : "bg-slate-300"}`} />
+                              {type.replace(/_/g, " ")}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      loading={consentGranting}
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white rounded-xl"
+                    >
+                      <Shield className="h-4 w-4" /> Grant Consent
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* PM-JAY Beneficiary Tab */}
+        {profileTab === "pmjay" && canReadPmjay && (
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            {/* Current PM-JAY Status */}
+            <Card className="rounded-[24px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-amber-500" />
+                  PM-JAY Beneficiary Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pmjayLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-10 w-1/2" />
+                  </div>
+                ) : pmjayError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    {pmjayError}
+                  </div>
+                ) : pmjayDetails ? (
+                  <div className="space-y-4">
+                    {/* PM-JAY ID */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">PM-JAY Beneficiary ID</div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="text-lg font-black font-mono tracking-widest text-slate-900 dark:text-white">
+                          {pmjayDetails.pmjayId}
+                        </span>
+                        <Badge
+                          tone={
+                            pmjayDetails.eligibilityStatus === "eligible"   ? "teal"    :
+                            pmjayDetails.eligibilityStatus === "ineligible" ? "red"     : "yellow"
+                          }
+                        >
+                          {pmjayDetails.eligibilityStatus.charAt(0).toUpperCase() + pmjayDetails.eligibilityStatus.slice(1)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Beneficiary Name */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Beneficiary Name (on card)</div>
+                      <div className="mt-2 text-base font-semibold text-slate-900 dark:text-white">{pmjayDetails.beneficiaryName}</div>
+                    </div>
+
+                    {/* Verification Status */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/30 p-4 dark:border-neutral-200/5 dark:bg-neutral-100/5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Verification Status</div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge
+                          tone={
+                            pmjayDetails.verificationStatus === "verified" ? "teal" :
+                            pmjayDetails.verificationStatus === "failed"   ? "red"  : "yellow"
+                          }
+                        >
+                          {pmjayDetails.verificationStatus.charAt(0).toUpperCase() + pmjayDetails.verificationStatus.slice(1)}
+                        </Badge>
+                        {pmjayDetails.verifiedAt && (
+                          <span className="text-xs text-slate-400 dark:text-neutral-500">
+                            on {formatDateTime(pmjayDetails.verifiedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap gap-2">
+                      {canVerifyPmjay && pmjayDetails.verificationStatus !== "verified" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-950/20 rounded-xl"
+                          loading={pmjayVerifySubmitting}
+                          onClick={async () => {
+                            setPmjayVerifySubmitting(true);
+                            try {
+                              const res = await verifyPmjay({
+                                patient_id:          viewingPatientId,
+                                verification_status: "verified",
+                                eligibility_status:  "eligible",
+                              });
+                              setPmjayDetails(res.pmjay);
+                              toast.success("PM-JAY marked as verified and eligible");
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || "Failed to verify PM-JAY");
+                            } finally {
+                              setPmjayVerifySubmitting(false);
+                            }
+                          }}
+                        >
+                          Mark as Verified
+                        </Button>
+                      )}
+                      {canVerifyPmjay && pmjayDetails.verificationStatus !== "failed" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-950/20 rounded-xl"
+                          loading={pmjayVerifySubmitting}
+                          onClick={async () => {
+                            setPmjayVerifySubmitting(true);
+                            try {
+                              const res = await verifyPmjay({
+                                patient_id:          viewingPatientId,
+                                verification_status: "failed",
+                                eligibility_status:  "ineligible",
+                              });
+                              setPmjayDetails(res.pmjay);
+                              toast.success("PM-JAY marked as failed");
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || "Failed to update verification");
+                            } finally {
+                              setPmjayVerifySubmitting(false);
+                            }
+                          }}
+                        >
+                          Mark as Failed
+                        </Button>
+                      )}
+                      {canUnlinkPmjay && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:text-red-400 dark:hover:bg-red-950/20 rounded-xl"
+                          loading={pmjayUnlinkSubmitting}
+                          onClick={async () => {
+                            if (!window.confirm(`Unlink PM-JAY ID ${pmjayDetails.pmjayId}? This cannot be undone.`)) return;
+                            setPmjayUnlinkSubmitting(true);
+                            try {
+                              await unlinkPmjay(viewingPatientId);
+                              setPmjayDetails(null);
+                              setPmjayLinkForm({ pmjay_id: "", beneficiary_name: "" });
+                              toast.success("PM-JAY enrollment unlinked");
+                            } catch (err) {
+                              toast.error(err.response?.data?.message || "Failed to unlink PM-JAY");
+                            } finally {
+                              setPmjayUnlinkSubmitting(false);
+                            }
+                          }}
+                        >
+                          Unlink PM-JAY
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-950/20">
+                      <Shield className="h-7 w-7 text-amber-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Not enrolled in PM-JAY</p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">Link the patient's PM-JAY Beneficiary ID to check scheme eligibility.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Link PM-JAY Form */}
+            {canLinkPmjay && !pmjayDetails && !pmjayLoading && (
+              <Card className="rounded-[24px]">
+                <CardHeader>
+                  <CardTitle>Link PM-JAY</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="space-y-4"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const id   = pmjayLinkForm.pmjay_id.trim().toUpperCase();
+                      const name = pmjayLinkForm.beneficiary_name.trim();
+                      if (!/^[A-Z0-9\-]{8,20}$/.test(id)) {
+                        toast.error("PM-JAY ID must be 8–20 alphanumeric characters or hyphens");
+                        return;
+                      }
+                      setPmjayLinkSubmitting(true);
+                      try {
+                        const res = await linkPmjay({
+                          patient_id:       viewingPatientId,
+                          pmjay_id:         id,
+                          beneficiary_name: name,
+                        });
+                        setPmjayDetails(res.pmjay);
+                        setPmjayLinkForm({ pmjay_id: "", beneficiary_name: "" });
+                        toast.success("PM-JAY enrollment linked successfully");
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to link PM-JAY");
+                      } finally {
+                        setPmjayLinkSubmitting(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        PM-JAY Beneficiary ID <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        placeholder="e.g. PMJAY-1234567890"
+                        value={pmjayLinkForm.pmjay_id}
+                        onChange={(e) => setPmjayLinkForm((f) => ({ ...f, pmjay_id: e.target.value.toUpperCase() }))}
+                        required
+                        maxLength={20}
+                        className="mt-1 font-mono tracking-wider"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        8–20 character government-issued Beneficiary/HH ID. Hyphens allowed.
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Beneficiary Name (as on card) <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        placeholder="Full name as printed on PM-JAY card"
+                        value={pmjayLinkForm.beneficiary_name}
+                        onChange={(e) => setPmjayLinkForm((f) => ({ ...f, beneficiary_name: e.target.value }))}
+                        required
+                        maxLength={200}
+                        className="mt-1"
+                      />
+                      <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
+                        Name may differ from patient's registered name.
+                      </p>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      loading={pmjayLinkSubmitting}
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+                    >
+                      <Shield className="h-4 w-4" /> Link PM-JAY Enrollment
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* PM-JAY Claims Tab */}
+        {profileTab === "pmjay-claims" && canReadClaim && (
+          <div className="space-y-6">
+            {/* Claims History Table */}
+            <Card className="rounded-[24px]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-amber-500" />
+                  PM-JAY Claim History
+                  {pmjayClaimsData?.length > 0 && (
+                    <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      {pmjayClaimsData.length} claim{pmjayClaimsData.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pmjayClaimsLoading ? (
+                  <div className="space-y-3 animate-pulse">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-3/4" />
+                  </div>
+                ) : pmjayClaimsError ? (
+                  <div className="rounded-2xl border border-red-100 bg-red-50/30 p-4 text-sm text-red-600 dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
+                    {pmjayClaimsError}
+                  </div>
+                ) : pmjayClaimsData?.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 dark:border-neutral-200/5">
+                          <th className="pb-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Claim No.</th>
+                          <th className="pb-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Status</th>
+                          <th className="pb-3 text-right text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Amount</th>
+                          <th className="pb-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Submitted</th>
+                          <th className="pb-3 text-left text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 dark:divide-neutral-200/5">
+                        {pmjayClaimsData.map((claim) => (
+                          <tr key={claim.id} className="group">
+                            <td className="py-3 font-mono text-xs font-bold text-slate-900 dark:text-white">{claim.claimNumber}</td>
+                            <td className="py-3">
+                              <Badge
+                                tone={
+                                  claim.status === "PAID"         ? "teal"    :
+                                  claim.status === "APPROVED"     ? "teal"    :
+                                  claim.status === "REJECTED"     ? "red"     :
+                                  claim.status === "UNDER_REVIEW" ? "yellow"  :
+                                  claim.status === "SUBMITTED"    ? "blue"    : "neutral"
+                                }
+                              >
+                                {claim.status.replace(/_/g, " ")}
+                              </Badge>
+                            </td>
+                            <td className="py-3 text-right font-semibold text-slate-900 dark:text-white">
+                              ₹{claim.claimAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 text-xs text-slate-400 dark:text-neutral-500">
+                              {claim.submittedAt ? formatDateTime(claim.submittedAt) : "—"}
+                            </td>
+                            <td className="py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {/* Submit DRAFT */}
+                                {canSubmitClaim && claim.status === "DRAFT" && (
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900/30 dark:text-blue-400 rounded-lg text-xs px-2 py-1"
+                                    loading={pmjaySubmitting === claim.id}
+                                    onClick={async () => {
+                                      setPmjaySubmitting(claim.id);
+                                      try {
+                                        const res = await submitPmjayClaim(claim.id);
+                                        setPmjayClaimsData((prev) => prev.map((c) => c.id === claim.id ? res.claim : c));
+                                        toast.success(`Claim ${claim.claimNumber} submitted`);
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || "Failed to submit claim");
+                                      } finally {
+                                        setPmjaySubmitting(null);
+                                      }
+                                    }}
+                                  >
+                                    Submit
+                                  </Button>
+                                )}
+                                {/* Mark Under Review */}
+                                {canUpdateClaim && claim.status === "SUBMITTED" && (
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="border border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-900/30 dark:text-amber-400 rounded-lg text-xs px-2 py-1"
+                                    loading={pmjayStatusUpdating === claim.id}
+                                    onClick={async () => {
+                                      setPmjayStatusUpdating(claim.id);
+                                      try {
+                                        const res = await updatePmjayClaimStatus({ claim_id: claim.id, status: "UNDER_REVIEW" });
+                                        setPmjayClaimsData((prev) => prev.map((c) => c.id === claim.id ? res.claim : c));
+                                        toast.success("Claim moved to Under Review");
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || "Failed to update status");
+                                      } finally {
+                                        setPmjayStatusUpdating(null);
+                                      }
+                                    }}
+                                  >
+                                    Under Review
+                                  </Button>
+                                )}
+                                {/* Approve */}
+                                {canUpdateClaim && claim.status === "UNDER_REVIEW" && (
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/30 dark:text-emerald-400 rounded-lg text-xs px-2 py-1"
+                                    loading={pmjayStatusUpdating === claim.id}
+                                    onClick={async () => {
+                                      setPmjayStatusUpdating(claim.id);
+                                      try {
+                                        const res = await updatePmjayClaimStatus({ claim_id: claim.id, status: "APPROVED" });
+                                        setPmjayClaimsData((prev) => prev.map((c) => c.id === claim.id ? res.claim : c));
+                                        toast.success("Claim approved");
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || "Failed to approve claim");
+                                      } finally {
+                                        setPmjayStatusUpdating(null);
+                                      }
+                                    }}
+                                  >
+                                    Approve
+                                  </Button>
+                                )}
+                                {/* Mark Paid */}
+                                {canUpdateClaim && claim.status === "APPROVED" && (
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="border border-teal-200 text-teal-700 hover:bg-teal-50 dark:border-teal-900/30 dark:text-teal-400 rounded-lg text-xs px-2 py-1"
+                                    loading={pmjayStatusUpdating === claim.id}
+                                    onClick={async () => {
+                                      setPmjayStatusUpdating(claim.id);
+                                      try {
+                                        const res = await updatePmjayClaimStatus({ claim_id: claim.id, status: "PAID" });
+                                        setPmjayClaimsData((prev) => prev.map((c) => c.id === claim.id ? res.claim : c));
+                                        toast.success("Claim marked as paid");
+                                      } catch (err) {
+                                        toast.error(err.response?.data?.message || "Failed to mark paid");
+                                      } finally {
+                                        setPmjayStatusUpdating(null);
+                                      }
+                                    }}
+                                  >
+                                    Mark Paid
+                                  </Button>
+                                )}
+                                {/* Reject — SUBMITTED or UNDER_REVIEW */}
+                                {canUpdateClaim && ["SUBMITTED", "UNDER_REVIEW"].includes(claim.status) && (
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    className="border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/30 dark:text-red-400 rounded-lg text-xs px-2 py-1"
+                                    onClick={() => setPmjayRejectForm({ claimId: claim.id, reason: "" })}
+                                  >
+                                    Reject
+                                  </Button>
+                                )}
+                              </div>
+                              {/* Rejection reason inline */}
+                              {claim.rejectionReason && (
+                                <div className="mt-1.5 text-xs text-red-500 dark:text-red-400">
+                                  Reason: {claim.rejectionReason}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 dark:bg-amber-950/20">
+                      <FileText className="h-6 w-6 text-amber-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No PM-JAY claims yet</p>
+                    <p className="mt-1 text-xs text-slate-400 dark:text-neutral-500">Create a claim below to start the PM-JAY reimbursement process.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Reject Confirmation Inline Form */}
+            {pmjayRejectForm.claimId && (
+              <Card className="rounded-[24px] border border-red-100 dark:border-red-900/30">
+                <CardHeader>
+                  <CardTitle className="text-red-600 dark:text-red-400">Reject Claim</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                      Rejection Reason <span className="text-red-500">*</span>
+                    </span>
+                    <textarea
+                      value={pmjayRejectForm.reason}
+                      onChange={(e) => setPmjayRejectForm((f) => ({ ...f, reason: e.target.value }))}
+                      rows={3}
+                      placeholder="Provide reason for rejection (required)…"
+                      className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        loading={pmjayStatusUpdating === pmjayRejectForm.claimId}
+                        className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                        onClick={async () => {
+                          if (!pmjayRejectForm.reason.trim()) {
+                            toast.error("Rejection reason is required");
+                            return;
+                          }
+                          setPmjayStatusUpdating(pmjayRejectForm.claimId);
+                          try {
+                            const res = await updatePmjayClaimStatus({
+                              claim_id:         pmjayRejectForm.claimId,
+                              status:           "REJECTED",
+                              rejection_reason: pmjayRejectForm.reason.trim(),
+                            });
+                            setPmjayClaimsData((prev) => prev.map((c) => c.id === pmjayRejectForm.claimId ? res.claim : c));
+                            setPmjayRejectForm({ claimId: null, reason: "" });
+                            toast.success("Claim rejected");
+                          } catch (err) {
+                            toast.error(err.response?.data?.message || "Failed to reject claim");
+                          } finally {
+                            setPmjayStatusUpdating(null);
+                          }
+                        }}
+                      >
+                        Confirm Rejection
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-xl"
+                        onClick={() => setPmjayRejectForm({ claimId: null, reason: "" })}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Create New Claim Form */}
+            {canCreateClaim && (
+              <Card className="rounded-[24px]">
+                <CardHeader>
+                  <CardTitle>Create PM-JAY Claim</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    className="grid gap-4 sm:grid-cols-2"
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      const amount = parseFloat(pmjayCreateForm.claim_amount);
+                      if (!amount || amount <= 0) {
+                        toast.error("Claim amount must be greater than ₹0");
+                        return;
+                      }
+                      setPmjayCreateSubmitting(true);
+                      try {
+                        const res = await createPmjayClaim({
+                          patient_id:     viewingPatientId,
+                          claim_amount:   amount,
+                          appointment_id: pmjayCreateForm.appointment_id ? parseInt(pmjayCreateForm.appointment_id, 10) : undefined,
+                        });
+                        setPmjayClaimsData((prev) => [res.claim, ...(prev || [])]);
+                        setPmjayCreateForm({ claim_amount: "", appointment_id: "" });
+                        toast.success(`Claim ${res.claim.claimNumber} created (DRAFT)`);
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || "Failed to create claim");
+                      } finally {
+                        setPmjayCreateSubmitting(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Claim Amount (₹) <span className="text-red-500">*</span>
+                      </span>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        placeholder="e.g. 15000.00"
+                        value={pmjayCreateForm.claim_amount}
+                        onChange={(e) => setPmjayCreateForm((f) => ({ ...f, claim_amount: e.target.value }))}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        Appointment ID <span className="text-slate-400">(optional)</span>
+                      </span>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="Link to appointment"
+                        value={pmjayCreateForm.appointment_id}
+                        onChange={(e) => setPmjayCreateForm((f) => ({ ...f, appointment_id: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <Button
+                        type="submit"
+                        loading={pmjayCreateSubmitting}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+                      >
+                        <FileText className="h-4 w-4" /> Create Draft Claim
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* Medical Record Modal */}
         <Modal
           open={emrOpen}
@@ -1402,12 +2792,12 @@ export default function AdminPatients() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">First Name *</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">First Name *</span>
               <Input
                 placeholder="Ramesh"
                 value={form.first_name}
-                onChange={(e) => setForm((c) => ({ ...c, first_name: e.target.value }))}
-                required
+                onChange={(e) => handleInputChange("first_name", e.target.value)}
+                error={errors.first_name}
               />
             </label>
             <label className="block">
@@ -1415,29 +2805,30 @@ export default function AdminPatients() {
               <Input
                 placeholder="Kumar"
                 value={form.last_name}
-                onChange={(e) => setForm((c) => ({ ...c, last_name: e.target.value }))}
-                required
+                onChange={(e) => handleInputChange("last_name", e.target.value)}
+                error={errors.last_name}
               />
             </label>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Email *</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Email *</span>
               <Input
                 type="email"
                 placeholder="ramesh@gmail.com"
                 value={form.email}
-                onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))}
-                required
+                onChange={(e) => handleInputChange("email", e.target.value)}
+                error={errors.email}
               />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Phone</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Phone</span>
               <Input
                 placeholder="+91 90000 00000"
                 value={form.phone}
-                onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                error={errors.phone}
               />
             </label>
           </div>
@@ -1447,7 +2838,7 @@ export default function AdminPatients() {
               <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Gender</span>
               <Select
                 value={form.gender}
-                onChange={(e) => setForm((c) => ({ ...c, gender: e.target.value }))}
+                onChange={(e) => handleInputChange("gender", e.target.value)}
                 className="mt-1 bg-white"
               >
                 <option value="male">Male</option>
@@ -1457,31 +2848,31 @@ export default function AdminPatients() {
               </Select>
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Date of Birth</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Date of Birth</span>
               <Input
                 type="date"
                 value={form.date_of_birth}
-                onChange={(e) => setForm((c) => ({ ...c, date_of_birth: e.target.value }))}
+                onChange={(e) => handleInputChange("date_of_birth", e.target.value)}
               />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Blood Group</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Blood Group</span>
               <Input
                 placeholder="O+"
                 value={form.blood_group}
-                onChange={(e) => setForm((c) => ({ ...c, blood_group: e.target.value }))}
+                onChange={(e) => handleInputChange("blood_group", e.target.value)}
               />
             </label>
           </div>
 
           <label className="block">
-            <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Address</span>
+            <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Address</span>
             <textarea
               value={form.address}
-              onChange={(e) => setForm((c) => ({ ...c, address: e.target.value }))}
+              onChange={(e) => handleInputChange("address", e.target.value)}
               rows={2}
               placeholder="Residential address"
-              className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-brand-505"
+              className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-brand-500 mt-1"
             />
           </label>
 
@@ -1491,7 +2882,7 @@ export default function AdminPatients() {
               <Input
                 placeholder="Sita Kumar"
                 value={form.emergency_contact_name}
-                onChange={(e) => setForm((c) => ({ ...c, emergency_contact_name: e.target.value }))}
+                onChange={(e) => handleInputChange("emergency_contact_name", e.target.value)}
               />
             </label>
             <label className="block">
@@ -1499,7 +2890,8 @@ export default function AdminPatients() {
               <Input
                 placeholder="+91 90000 11111"
                 value={form.emergency_contact_phone}
-                onChange={(e) => setForm((c) => ({ ...c, emergency_contact_phone: e.target.value }))}
+                onChange={(e) => handleInputChange("emergency_contact_phone", e.target.value)}
+                error={errors.emergency_contact_phone}
               />
             </label>
           </div>
@@ -1510,7 +2902,7 @@ export default function AdminPatients() {
               <Input
                 placeholder="Star Health"
                 value={form.insurance_provider}
-                onChange={(e) => setForm((c) => ({ ...c, insurance_provider: e.target.value }))}
+                onChange={(e) => handleInputChange("insurance_provider", e.target.value)}
               />
             </label>
             <label className="block">
@@ -1518,7 +2910,7 @@ export default function AdminPatients() {
               <Input
                 placeholder="POL-12345"
                 value={form.insurance_policy_number}
-                onChange={(e) => setForm((c) => ({ ...c, insurance_policy_number: e.target.value }))}
+                onChange={(e) => handleInputChange("insurance_policy_number", e.target.value)}
               />
             </label>
           </div>
@@ -1528,7 +2920,7 @@ export default function AdminPatients() {
               <span className="text-xs font-semibold text-slate-650 dark:text-slate-405">Account Status</span>
               <Select
                 value={form.status}
-                onChange={(e) => setForm((c) => ({ ...c, status: e.target.value }))}
+                onChange={(e) => handleInputChange("status", e.target.value)}
                 className="mt-1 bg-white"
               >
                 <option value="active">Active</option>
@@ -1537,12 +2929,12 @@ export default function AdminPatients() {
             </label>
           ) : (
             <label className="block">
-              <span className="text-xs font-semibold text-slate-650 dark:text-slate-450">Password</span>
+              <span className="text-xs font-semibold text-slate-650 dark:text-slate-455">Password</span>
               <Input
                 type="password"
                 placeholder="Optional (Default: Password@123)"
                 value={form.password}
-                onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))}
+                onChange={(e) => handleInputChange("password", e.target.value)}
               />
             </label>
           )}

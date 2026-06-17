@@ -54,6 +54,29 @@ export default function AdminDepartments() {
   const [editingDeptId, setEditingDeptId] = useState(null);
   const [selectedUserIdToAdd, setSelectedUserIdToAdd] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const handleDeptFormChange = (field, value) => {
+    setDeptForm(current => ({ ...current, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const handleMemberSelectChange = (value) => {
+    setSelectedUserIdToAdd(value);
+    if (errors.selectedUserIdToAdd) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next.selectedUserIdToAdd;
+        return next;
+      });
+    }
+  };
 
   const currentUser = getUser();
 
@@ -114,8 +137,23 @@ export default function AdminDepartments() {
   // Handle Create or Edit Department Submit
   async function handleDeptSubmit(e) {
     e.preventDefault();
-    if (!deptForm.code || !deptForm.name) {
-      toast.error("Department Code and Name are required");
+    
+    const formErrors = {};
+    if (!deptForm.code || !deptForm.code.trim()) {
+      formErrors.code = "Department code is required";
+    } else if (!/^[A-Za-z0-9-]{2,10}$/.test(deptForm.code)) {
+      formErrors.code = "Code must be alphanumeric and between 2 and 10 characters";
+    }
+
+    if (!deptForm.name || !deptForm.name.trim()) {
+      formErrors.name = "Department name is required";
+    } else if (deptForm.name.trim().length < 3) {
+      formErrors.name = "Department name must be at least 3 characters";
+    }
+
+    if (Object.keys(formErrors).length > 0) {
+      setErrors(formErrors);
+      toast.error("Please resolve form errors.");
       return;
     }
 
@@ -132,11 +170,13 @@ export default function AdminDepartments() {
         const updated = await updateDepartment(editingDeptId, payload);
         toast.success("Department updated successfully");
         setIsDeptModalOpen(false);
+        setErrors({});
         await loadData();
       } else {
         const created = await createDepartment(payload);
         toast.success("Department created successfully");
         setIsDeptModalOpen(false);
+        setErrors({});
         await loadData();
         setSelectedDept(created);
       }
@@ -166,6 +206,7 @@ export default function AdminDepartments() {
   async function handleAddMember(e) {
     e.preventDefault();
     if (!selectedUserIdToAdd) {
+      setErrors({ selectedUserIdToAdd: "Please select a user to add" });
       toast.error("Please select a user");
       return;
     }
@@ -176,6 +217,7 @@ export default function AdminDepartments() {
       toast.success("Member added to department");
       setIsMemberModalOpen(false);
       setSelectedUserIdToAdd("");
+      setErrors({});
       await loadMembers(selectedDept.id);
       await loadData();
     } catch (err) {
@@ -204,6 +246,7 @@ export default function AdminDepartments() {
   function openAddDept() {
     setDeptForm({ code: "", name: "", description: "", headUserId: "" });
     setEditingDeptId(null);
+    setErrors({});
     setIsDeptModalOpen(true);
   }
 
@@ -216,6 +259,7 @@ export default function AdminDepartments() {
       headUserId: dept.headUserId || ""
     });
     setEditingDeptId(dept.id);
+    setErrors({});
     setIsDeptModalOpen(true);
   }
 
@@ -241,7 +285,7 @@ export default function AdminDepartments() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-12">
       <PageHeader
         eyebrow="Hospital Hierarchy"
         title="Departments & Ownership"
@@ -493,22 +537,22 @@ export default function AdminDepartments() {
         <form onSubmit={handleDeptSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="block sm:col-span-1">
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Code (Unique) *</span>
+              <span className="text-xs font-semibold text-slate-605 dark:text-slate-455">Code (Unique) *</span>
               <Input
                 value={deptForm.code}
-                onChange={e => setDeptForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                onChange={e => handleDeptFormChange("code", e.target.value.toUpperCase())}
                 placeholder="e.g. CARD"
                 disabled={!!editingDeptId}
-                required
+                error={errors.code}
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Department Name *</span>
+              <span className="text-xs font-semibold text-slate-655 dark:text-slate-455">Department Name *</span>
               <Input
                 value={deptForm.name}
-                onChange={e => setDeptForm(f => ({ ...f, name: e.target.value }))}
+                onChange={e => handleDeptFormChange("name", e.target.value)}
                 placeholder="e.g. Cardiology & Vascular Clinic"
-                required
+                error={errors.name}
               />
             </label>
           </div>
@@ -554,7 +598,11 @@ export default function AdminDepartments() {
       {/* Add Member Modal */}
       <Modal
         open={isMemberModalOpen}
-        onClose={() => setIsMemberModalOpen(false)}
+        onClose={() => {
+          setIsMemberModalOpen(false);
+          setSelectedUserIdToAdd("");
+          setErrors({});
+        }}
         title={`Add Member to ${selectedDept?.name}`}
       >
         <form onSubmit={handleAddMember} className="space-y-4">
@@ -562,9 +610,9 @@ export default function AdminDepartments() {
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Select Hospital User / Practitioner</span>
             <Select
               value={selectedUserIdToAdd}
-              onChange={e => setSelectedUserIdToAdd(e.target.value)}
+              onChange={e => handleMemberSelectChange(e.target.value)}
               className="mt-1 bg-white"
-              required
+              error={errors.selectedUserIdToAdd}
             >
               <option value="">-- Choose User --</option>
               {eligibleUsersToAdd.map(u => (
@@ -576,7 +624,11 @@ export default function AdminDepartments() {
           </label>
 
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-            <Button type="button" variant="ghost" onClick={() => setIsMemberModalOpen(false)}>
+            <Button type="button" variant="ghost" onClick={() => {
+              setIsMemberModalOpen(false);
+              setSelectedUserIdToAdd("");
+              setErrors({});
+            }}>
               Cancel
             </Button>
             <Button type="submit" loading={submitting} className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl">
