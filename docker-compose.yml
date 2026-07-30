@@ -34,6 +34,31 @@ services:
       -c max_wal_senders=3
       -c hot_standby=on
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: mediconnect-pgbouncer
+    restart: always
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 500
+      DEFAULT_POOL_SIZE: 20
+      SERVER_RESET_QUERY: "DISCARD ALL"
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./deploy/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./deploy/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mediconnect-network
+
   redis:
     image: redis:7-alpine
     container_name: mediconnect-redis
@@ -99,14 +124,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_started
       redis:
         condition: service_healthy
       minio:
         condition: service_healthy
     environment:
       PORT: ${BACKEND_PORT}
-      DB_HOST: postgres
-      DB_PORT: ${DB_PORT}
+      DB_HOST: ${PGBOUNCER_HOST:-pgbouncer}
+      DB_PORT: ${PGBOUNCER_PORT:-6432}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}

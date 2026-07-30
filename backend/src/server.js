@@ -18,6 +18,30 @@ const io = new Server(server, {
   },
 });
 
+// Setup Redis adapter for Socket.io cross-worker signaling in PM2 cluster mode
+if (process.env.REDIS_ENABLED !== "false" && process.env.NODE_ENV !== "test") {
+  try {
+    const { createAdapter } = require("@socket.io/redis-adapter");
+    const Redis = require("ioredis");
+    const redisOptions = process.env.REDIS_URL
+      ? process.env.REDIS_URL
+      : {
+          host: process.env.REDIS_HOST || "127.0.0.1",
+          port: Number(process.env.REDIS_PORT || 6379),
+          password: process.env.REDIS_PASSWORD || undefined,
+          db: Number(process.env.REDIS_DB || 0),
+        };
+    const pubClient = typeof redisOptions === "string" ? new Redis(redisOptions) : new Redis(redisOptions);
+    const subClient = pubClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.info("Socket.io: Redis adapter attached for cross-process WebRTC signaling");
+  } catch (err) {
+    logger.warn("Socket.io: Failed to initialize Redis adapter, falling back to in-memory adapter", { error: err.message });
+  }
+} else {
+  logger.warn("Socket.io: REDIS_ENABLED=false or test mode — falling back to in-memory adapter");
+}
+
 io.on("connection", (socket) => {
   attachSocketHandlers(socket);
 });

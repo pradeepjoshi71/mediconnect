@@ -49,68 +49,67 @@ async function api(method, endpoint, body, token) {
   return { status: res.status, headers: res.headers, body: json };
 }
 
-// --- Setup ---
-before(async () => {
-  // Login
-  const { status, body } = await api('POST', '/auth/login', {
-    email: TEST_EMAIL,
-    password: TEST_PASSWORD,
-    hospitalCode: TEST_HOSPITAL
-  });
-
-  if (status !== 200) {
-    throw new Error(`Authentication failed during integration test setup: ${JSON.stringify(body)}`);
-  }
-
-  accessToken = body.accessToken;
-  hospitalId = body.user?.hospitalId || body.hospitalId;
-
-  // Retrieve patient
-  const patientsRes = await api('GET', '/patients', null, accessToken);
-  assert.equal(patientsRes.status, 200);
-  const patientsList = patientsRes.body.patients || patientsRes.body;
-  if (patientsList && patientsList.length > 0) {
-    patientId = patientsList[0].patient_id || patientsList[0].id;
-  }
-
-  // Retrieve doctor
-  const doctorsRes = await api('GET', '/doctors', null, accessToken);
-  assert.equal(doctorsRes.status, 200);
-  const doctorsList = doctorsRes.body.doctors || doctorsRes.body;
-  if (doctorsList && doctorsList.length > 0) {
-    doctorId = doctorsList[0].doctor_id || doctorsList[0].id;
-  }
-
-  // Create an appointment or find existing
-  const startsAt = new Date(Date.now() + 86400000).toISOString(); // tomorrow
-  const apptRes = await api('POST', '/appointments', {
-    patientId,
-    doctorId,
-    startsAt,
-    reason: 'Telemedicine Test Appointment',
-    consultationMode: 'telemedicine'
-  }, accessToken);
-
-  if (apptRes.status === 201) {
-    appointmentId = apptRes.body.id || apptRes.body.appointmentId;
-  } else {
-    // Fallback: list appointments and grab first
-    const apptsRes = await api('GET', '/appointments', null, accessToken);
-    if (apptsRes.status === 200) {
-      const list = apptsRes.body.appointments || apptsRes.body;
-      if (list && list.length > 0) {
-        appointmentId = list[0].id;
-      }
-    }
-  }
-
-  if (!appointmentId) {
-    throw new Error('Could not find or create a valid appointment for telemedicine integration test.');
-  }
-});
-
 // --- Tests ---
 describe('Telemedicine Module REST API Tests', () => {
+  // --- Setup ---
+  before(async () => {
+    // Login
+    const { status, body } = await api('POST', '/auth/login', {
+      email: TEST_EMAIL,
+      password: TEST_PASSWORD,
+      hospitalCode: TEST_HOSPITAL
+    });
+
+    if (status !== 200) {
+      throw new Error(`Authentication failed during integration test setup: ${JSON.stringify(body)}`);
+    }
+
+    accessToken = body.accessToken;
+    hospitalId = body.user?.hospitalId || body.hospitalId;
+
+    // Retrieve patient
+    const patientsRes = await api('GET', '/patients', null, accessToken);
+    assert.equal(patientsRes.status, 200);
+    const patientsList = patientsRes.body.patients || patientsRes.body;
+    if (patientsList && patientsList.length > 0) {
+      patientId = patientsList[0].patient_id || patientsList[0].id;
+    }
+
+    // Retrieve doctor
+    const doctorsRes = await api('GET', '/doctors', null, accessToken);
+    assert.equal(doctorsRes.status, 200);
+    const doctorsList = doctorsRes.body.doctors || doctorsRes.body;
+    if (doctorsList && doctorsList.length > 0) {
+      doctorId = doctorsList[0].doctor_id || doctorsList[0].id;
+    }
+
+    // Create an appointment or find existing
+    const startsAt = new Date(Date.now() + 86400000).toISOString(); // tomorrow
+    const apptRes = await api('POST', '/appointments', {
+      patientId,
+      doctorId,
+      startsAt,
+      reason: 'Telemedicine Test Appointment',
+      consultationMode: 'telemedicine'
+    }, accessToken);
+
+    if (apptRes.status === 201) {
+      appointmentId = apptRes.body.id || apptRes.body.appointmentId;
+    } else {
+      // Fallback: list appointments and grab first
+      const apptsRes = await api('GET', '/appointments', null, accessToken);
+      if (apptsRes.status === 200) {
+        const list = apptsRes.body.appointments || apptsRes.body;
+        if (list && list.length > 0) {
+          appointmentId = list[0].id;
+        }
+      }
+    }
+
+    if (!appointmentId) {
+      throw new Error('Could not find or create a valid appointment for telemedicine integration test.');
+    }
+  });
 
   test('GET /appointments/:appointmentId/session gets or creates telemedicine session', async () => {
     const { status, body } = await api('GET', `/telemedicine/appointments/${appointmentId}/session`, null, accessToken);

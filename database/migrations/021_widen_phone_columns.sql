@@ -6,3 +6,6 @@ ALTER TABLE users
 
 ALTER TABLE patients 
   ALTER COLUMN emergency_contact_phone TYPE VARCHAR(255);
+
+ALTER TABLE hospitals 
+  ALTER COLUMN support_phone TYPE VARCHAR(255);

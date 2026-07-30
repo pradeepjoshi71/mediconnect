@@ -12,7 +12,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
-const rateLimit = require("express-rate-limit");
+const { defaultRateLimiter } = require("./middlewares/rateLimiter");
 const db = require("./config/db");
 const { pingRedis } = require("./config/redis");
 
@@ -52,6 +52,7 @@ const pmjayRoutes                = require("./routes/pmjayRoutes");
 const minioService = require("./services/minioService");
 const backupScheduler = require("./services/backupScheduler");
 const dbBackup = require("./jobs/dbBackup");
+const partitionMaintenance = require("./jobs/partitionMaintenance");
 const { requestContext } = require("./middlewares/requestContext");
 const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
 const logger = require("./utils/logger");
@@ -103,14 +104,7 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  rateLimit({
-    windowMs: 60 * 1000,
-    limit: Number(process.env.API_RATE_LIMIT || 120),
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-  })
-);
+app.use(defaultRateLimiter);
 
 // Health routes — Postgres + R2 + heap probes (replaces basic stubs)
 app.use('/health',       healthRouter);
@@ -149,6 +143,7 @@ pingRedis()
 if ((process.env.NODE_APP_INSTANCE ?? "0") === "0") {
   backupScheduler.start();
   dbBackup.start(); // Google Drive streaming backup — zero disk, daily 02:00 IST
+  partitionMaintenance.start(); // Auto-create monthly audit_logs partitions
 }
 
 app.use("/api/v1/auth", authRoutes);

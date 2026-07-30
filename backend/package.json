@@ -4,13 +4,23 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node --env-file=../.env src/server.js",
-    "dev": "node --env-file=../.env --watch src/server.js"
+    "start:cluster": "pm2 start ecosystem.config.js --env production",
+    "test": "node src/scripts/runTestsWithInfraCheck.js",
+    "test:unit": "node --env-file=../.env --test src/tests/*.test.js src/fhir/tests/fhir.mappers.test.js src/fhir/tests/fhir.schemas.test.js src/insurance/tests/insurance.repository.test.js",
+    "test:integration": "node src/scripts/runTestsWithInfraCheck.js --integration",
+    "dev": "node --env-file=../.env --watch --watch-path=src src/server.js",
+    "db:create": "node --env-file=../.env src/scripts/createDb.js",
+    "db:fix-phone": "node --env-file=../.env src/scripts/fixPhoneCol.js",
+    "db:migrate": "node --env-file=../.env src/scripts/runMigration.js",
+    "db:seed": "node --env-file=../.env ../scripts/seedBetaClinic.js",
+    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1064.0",
     "@aws-sdk/client-ses": "^3.1070.0",
     "@aws-sdk/s3-request-presigner": "^3.1064.0",
     "@sentry/node": "^10.56.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -26,6 +36,7 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "pg": "^8.20.0",
+    "rate-limit-redis": "^4.3.1",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",

@@ -40,7 +40,7 @@ CREATE TABLE hospitals (
   name VARCHAR(160) NOT NULL,
   timezone VARCHAR(80) NOT NULL DEFAULT 'UTC',
   country_code VARCHAR(8) NOT NULL DEFAULT 'IN',
-  support_phone VARCHAR(24),
+  support_phone VARCHAR(255),
   billing_email VARCHAR(255),
   status VARCHAR(20) NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'trial', 'suspended', 'archived')),

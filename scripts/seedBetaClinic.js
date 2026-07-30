@@ -21,7 +21,15 @@
  *   • Will NOT run in production unless FORCE_SEED=true is explicitly set
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+try {
+  require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+} catch (err) {
+  // Gracefully skip if dotenv is not installed (e.g. when using node --env-file)
+}
+
+
+// Add backend node_modules to search paths so dependencies are resolved
+module.paths.push(require('path').join(__dirname, '../backend/node_modules'));
 
 const bcrypt       = require('bcrypt');
 const { Pool }     = require('pg');
@@ -70,8 +78,11 @@ const BETA = {
 
 // ─── DB connection ────────────────────────────────────────────────────────────
 
+const connectionString = process.env.DATABASE_URL || 
+  `postgresql://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || '127.0.0.1'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'mediconnect'}`;
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   max: 2,
   ssl: process.env.DB_SSL === 'false' ? undefined : { rejectUnauthorized: false },
 });
@@ -122,21 +133,35 @@ async function seed() {
   try {
     await client.query('BEGIN');
 
+    // Get list of existing tables in public schema to avoid deleting non-existent tables
+    const tableCheckRes = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    const existingTables = new Set(tableCheckRes.rows.map(r => r.table_name));
+
     // ── Step 1: Cascade-delete all existing data ──────────────────────────
     console.log('🗑️   Clearing existing data...');
     for (const table of LEAF_TABLES) {
+      if (!existingTables.has(table)) {
+        console.log(`     –  ${table}: table does not exist yet, skipping`);
+        continue;
+      }
       try {
+        const isAuditLogs = table === 'audit_logs';
+        if (isAuditLogs) {
+          await client.query('ALTER TABLE audit_logs DISABLE TRIGGER ALL');
+        }
         const res = await client.query(`DELETE FROM ${table}`);
+        if (isAuditLogs) {
+          await client.query('ALTER TABLE audit_logs ENABLE TRIGGER ALL');
+        }
         if (res.rowCount > 0) {
           console.log(`     ✓  ${table}: removed ${res.rowCount} row(s)`);
         }
       } catch (err) {
-        // Table may not exist yet (e.g. beta_feedback — will be created by migration)
-        if (err.code === '42P01') {
-          console.log(`     –  ${table}: table does not exist yet, skipping`);
-        } else {
-          throw err;
-        }
+        throw err;
       }
     }
 
@@ -189,7 +214,61 @@ async function seed() {
         [hospital.id, code, name, descr]
       );
     }
-    console.log('     ✓  5 departments seeded\n');
+    console.log('     ✓  5 departments seeded for BETA01\n');
+
+    // ── Step 2b: Create Default Hospital (MCH-BLR) ──────────────────────
+    console.log('🏥   Creating default hospital (MCH-BLR)...');
+    const mchRes = await client.query(
+      `INSERT INTO hospitals (name, code, slug, timezone, country_code, support_phone, billing_email, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, code`,
+      [
+        'MediConnect Bengaluru Hospital',
+        'MCH-BLR',
+        'mediconnect-bengaluru',
+        'Asia/Kolkata',
+        'IN',
+        encryptData('+918044123300'),
+        'billing.blr@mediconnect.local',
+        'active',
+      ]
+    );
+    const mchHospital = mchRes.rows[0];
+    for (const [code, name, descr] of DEPARTMENTS) {
+      await client.query(
+        `INSERT INTO departments (hospital_id, department_code, department_name, description)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (hospital_id, department_code) DO NOTHING`,
+        [mchHospital.id, code, name, descr]
+      );
+    }
+    console.log(`     ✓  Hospital: "${mchHospital.name}" (ID: ${mchHospital.id}, Code: ${mchHospital.code})\n`);
+
+    // Seed default demo accounts for MCH-BLR
+    const defaultUsers = [
+      { roleCode: 'admin', fullName: 'Asha Menon', email: 'admin@mediconnect.local' },
+      { roleCode: 'doctor', fullName: 'Dr. Rohan Mehta', email: 'doctor@mediconnect.local' },
+      { roleCode: 'patient', fullName: 'Maya Rao', email: 'patient@mediconnect.local' },
+      { roleCode: 'receptionist', fullName: 'Nina Kapoor', email: 'reception@mediconnect.local' },
+    ];
+
+    const defaultPwHash = await bcrypt.hash('Password@123', 12);
+    for (const u of defaultUsers) {
+      const roleRes = await client.query(`SELECT id FROM roles WHERE code = $1 LIMIT 1`, [u.roleCode]);
+      if (roleRes.rows[0]) {
+        const rId = roleRes.rows[0].id;
+        const uRes = await client.query(
+          `INSERT INTO users (hospital_id, role_id, full_name, email, password_hash, phone, status)
+           VALUES ($1, $2, $3, lower($4), $5, $6, 'active')
+           RETURNING id`,
+          [mchHospital.id, rId, u.fullName, u.email, defaultPwHash, encryptData('+919000000001')]
+        );
+        await client.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [uRes.rows[0].id, rId]
+        );
+      }
+    }
+    console.log('     ✓  Default users seeded for MCH-BLR\n');
 
     // ── Step 3: Create Super Admin ────────────────────────────────────────
     console.log('👤   Creating Super Admin...');
