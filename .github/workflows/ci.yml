@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Create environment configuration
+        run: cp .env.example .env
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Run unit tests
+        run: npm run test:unit
+        working-directory: backend
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Create environment configuration
+        run: cp .env.example .env
+
+      - name: Spin up infrastructure (Postgres, PgBouncer, Redis, MinIO)
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d postgres pgbouncer redis minio
+
+      - name: Wait for infrastructure services
+        run: |
+          echo "Waiting for PostgreSQL..."
+          until docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T postgres pg_isready -U postgres; do
+            sleep 2
+          done
+          echo "Waiting for Redis..."
+          until docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T redis redis-cli ping; do
+            sleep 2
+          done
+          echo "Waiting for MinIO..."
+          until curl -sf http://localhost:9000/minio/health/live; do
+            sleep 2
+          done
+          echo "All infrastructure services are ready."
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Setup database (create, migrate, seed)
+        run: npm run db:setup
+        working-directory: backend
+
+      - name: Start backend server & wait for readiness
+        run: |
+          npm start &
+          echo "Waiting for backend server on http://localhost:5000/ping..."
+          until curl -sf http://localhost:5000/ping; do
+            sleep 2
+          done
+          echo "Backend server is online!"
+        working-directory: backend
+
+      - name: Run integration tests
+        run: npm run test:integration
+        working-directory: backend
+
+      - name: Tear down infrastructure
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v

@@ -1,0 +1,16 @@
+# docker-compose.ci.yml — CI-only service port overrides for GitHub Actions
+# Used exclusively during test execution. NOT used in production deployments.
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"

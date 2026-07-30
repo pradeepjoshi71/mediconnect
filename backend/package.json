@@ -13,7 +13,12 @@
     "db:fix-phone": "node --env-file=../.env src/scripts/fixPhoneCol.js",
     "db:migrate": "node --env-file=../.env src/scripts/runMigration.js",
     "db:seed": "node --env-file=../.env ../scripts/seedBetaClinic.js",
-    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed"
+    "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
+    "qa:investigate": "node --env-file=../.env src/scripts/qa_investigation.js",
+    "qa:test": "node --env-file=../.env src/scripts/qa_full_test_suite.js",
+    "qa:snapshot": "node --env-file=../.env src/scripts/check_pilot_data.js",
+    "qa:seed": "node --env-file=../.env ../scripts/seedTestTenants.js",
+    "qa:e2e": "node --env-file=../.env src/scripts/e2e_qa_suite.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1064.0",

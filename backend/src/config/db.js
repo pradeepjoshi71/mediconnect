@@ -31,7 +31,11 @@ if (process.env.DATABASE_URL) {
   poolConfig.password = process.env.DB_PASSWORD;
   poolConfig.host = process.env.PGBOUNCER_HOST || process.env.DB_HOST;
   poolConfig.database = process.env.DB_NAME;
-  poolConfig.port = Number(process.env.PGBOUNCER_PORT || process.env.DB_PORT || 6432);
+  poolConfig.port = Number(
+    process.env.PGBOUNCER_HOST
+      ? (process.env.PGBOUNCER_PORT || 6432)
+      : (process.env.DB_PORT || 5432)
+  );
 }
 
 const pool = new Pool(poolConfig);
