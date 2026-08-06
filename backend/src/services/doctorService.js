@@ -30,8 +30,10 @@ function isInsideTimeOff(slotStart, slotEnd, periods) {
 }
 
 async function listDoctors(user, filters) {
+  // super_admin gets cross-tenant visibility (hospitalId = null removes hospital filter)
+  const hospitalId = user.role === "super_admin" ? null : user.hospitalId;
   return doctorRepository.listDoctors({
-    hospitalId: user.hospitalId,
+    hospitalId,
     ...filters,
   });
 }

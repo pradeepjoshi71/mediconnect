@@ -2,35 +2,32 @@ const db = require("../config/db");
 const { asyncHandler } = require("../middlewares/asyncHandler");
 
 const getAdminDashboard = asyncHandler(async (req, res) => {
-  const hospitalId = req.user.hospitalId;
+  const { hospitalId, role } = req.user;
+  const isSuperAdmin = role === 'super_admin';
 
   // 1. Fetch Stats
-  const totalDoctorsResult = await db.query(
-    "SELECT COUNT(*)::int FROM doctors WHERE hospital_id = $1",
-    [hospitalId]
-  );
-  
-  const totalPatientsResult = await db.query(
-    "SELECT COUNT(*)::int FROM patients WHERE hospital_id = $1",
-    [hospitalId]
-  );
+  let totalDoctorsQuery, totalPatientsQuery, appointmentsTodayQuery, activeDoctorsQuery;
+  let params = [];
 
-  const appointmentsTodayResult = await db.query(
-    `SELECT COUNT(*)::int
-     FROM appointments
-     WHERE hospital_id = $1
-       AND scheduled_start >= date_trunc('day', now())
-       AND scheduled_start < date_trunc('day', now()) + interval '1 day'`,
-    [hospitalId]
-  );
+  if (isSuperAdmin) {
+    totalDoctorsQuery = "SELECT COUNT(*)::int FROM doctors";
+    totalPatientsQuery = "SELECT COUNT(*)::int FROM patients";
+    appointmentsTodayQuery = `SELECT COUNT(*)::int FROM appointments WHERE scheduled_start >= date_trunc('day', now()) AND scheduled_start < date_trunc('day', now()) + interval '1 day'`;
+    activeDoctorsQuery = `SELECT COUNT(d.id)::int FROM doctors d JOIN users u ON u.id = d.user_id WHERE u.status = 'active'`;
+  } else {
+    totalDoctorsQuery = "SELECT COUNT(*)::int FROM doctors WHERE hospital_id = $1";
+    totalPatientsQuery = "SELECT COUNT(*)::int FROM patients WHERE hospital_id = $1";
+    appointmentsTodayQuery = `SELECT COUNT(*)::int FROM appointments WHERE hospital_id = $1 AND scheduled_start >= date_trunc('day', now()) AND scheduled_start < date_trunc('day', now()) + interval '1 day'`;
+    activeDoctorsQuery = `SELECT COUNT(d.id)::int FROM doctors d JOIN users u ON u.id = d.user_id WHERE d.hospital_id = $1 AND u.status = 'active'`;
+    params = [hospitalId];
+  }
 
-  const activeDoctorsResult = await db.query(
-    `SELECT COUNT(d.id)::int
-     FROM doctors d
-     JOIN users u ON u.id = d.user_id
-     WHERE d.hospital_id = $1 AND u.status = 'active'`,
-    [hospitalId]
-  );
+  const [totalDoctorsResult, totalPatientsResult, appointmentsTodayResult, activeDoctorsResult] = await Promise.all([
+    db.query(totalDoctorsQuery, params),
+    db.query(totalPatientsQuery, params),
+    db.query(appointmentsTodayQuery, params),
+    db.query(activeDoctorsQuery, params)
+  ]);
 
   // 2. Fetch Recent Appointments Widget
   const recentAppointmentsResult = await db.query(
@@ -48,10 +45,10 @@ const getAdminDashboard = asyncHandler(async (req, res) => {
      JOIN users u_pat ON u_pat.id = p.user_id
      JOIN doctors d ON d.id = a.doctor_id
      JOIN users u_doc ON u_doc.id = d.user_id
-     WHERE a.hospital_id = $1
+     ${!isSuperAdmin ? "WHERE a.hospital_id = $1" : ""}
      ORDER BY a.created_at DESC, a.scheduled_start DESC
      LIMIT 5`,
-    [hospitalId]
+    isSuperAdmin ? [] : [hospitalId]
   );
 
   // 3. Fetch New Patients Widget
@@ -65,10 +62,10 @@ const getAdminDashboard = asyncHandler(async (req, res) => {
        p.created_at
      FROM patients p
      JOIN users u ON u.id = p.user_id
-     WHERE p.hospital_id = $1
+     ${!isSuperAdmin ? "WHERE p.hospital_id = $1" : ""}
      ORDER BY p.created_at DESC
      LIMIT 5`,
-    [hospitalId]
+    isSuperAdmin ? [] : [hospitalId]
   );
 
   // 4. Fetch Doctor Availability Widget
@@ -81,9 +78,9 @@ const getAdminDashboard = asyncHandler(async (req, res) => {
        (SELECT COUNT(*) FROM doctor_availability_rules WHERE doctor_id = d.id)::int AS "rules_count"
      FROM doctors d
      JOIN users u ON u.id = d.user_id
-     WHERE d.hospital_id = $1
+     ${!isSuperAdmin ? "WHERE d.hospital_id = $1" : ""}
      ORDER BY u.status DESC, u.full_name ASC`,
-    [hospitalId]
+    isSuperAdmin ? [] : [hospitalId]
   );
 
   res.json({

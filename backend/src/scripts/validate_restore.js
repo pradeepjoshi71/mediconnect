@@ -5,8 +5,19 @@ const path = require('path');
 const { execFile } = require('child_process');
 const util = require('util');
 const { Pool } = require('pg');
-const { runDatabaseBackup } = require('../services/backupScheduler');
 const logger = require('../utils/logger');
+
+// Ensure PostgreSQL bin path is present on Windows
+if (process.platform === 'win32' && !process.env.PATH.includes('PostgreSQL')) {
+  process.env.PATH += ';C:\\Program Files\\PostgreSQL\\17\\bin;C:\\Program Files\\PostgreSQL\\16\\bin;C:\\Program Files\\PostgreSQL\\15\\bin';
+}
+
+// Default BACKUP_DIR if unset for local validation
+if (!process.env.BACKUP_DIR) {
+  process.env.BACKUP_DIR = path.join(__dirname, '../../../backups');
+}
+
+const { runDatabaseBackup } = require('../services/backupScheduler');
 
 const execFileAsync = util.promisify(execFile);
 
@@ -74,12 +85,16 @@ async function runVerification() {
   const usersCountRes = await poolRestore.query('SELECT COUNT(*) FROM users');
   const hospitalsCountRes = await poolRestore.query('SELECT COUNT(*) FROM hospitals');
   const auditLogsCountRes = await poolRestore.query('SELECT COUNT(*) FROM audit_logs');
+  const patientsCountRes = await poolRestore.query('SELECT COUNT(*) FROM patients');
+  const apptsCountRes = await poolRestore.query('SELECT COUNT(*) FROM appointments');
 
   const usersCount = parseInt(usersCountRes.rows[0].count, 10);
   const hospitalsCount = parseInt(hospitalsCountRes.rows[0].count, 10);
   const auditLogsCount = parseInt(auditLogsCountRes.rows[0].count, 10);
+  const patientsCount = parseInt(patientsCountRes.rows[0].count, 10);
+  const apptsCount = parseInt(apptsCountRes.rows[0].count, 10);
 
-  console.log(`✓ Data verified: Users: ${usersCount}, Hospitals: ${hospitalsCount}, Audit Logs: ${auditLogsCount}`);
+  console.log(`✓ Data verified: Hospitals: ${hospitalsCount}, Users: ${usersCount}, Patients: ${patientsCount}, Appointments: ${apptsCount}, Audit Logs: ${auditLogsCount}`);
   await poolRestore.end();
 
   // 5. Clean up temporary verification database
@@ -126,6 +141,8 @@ Automated verification of backup custom-format restore and schema integrity test
 * **Import Row Counts**:
   * **Hospitals**: ${hospitalsCount}
   * **Users**: ${usersCount}
+  * **Patients**: ${patientsCount}
+  * **Appointments**: ${apptsCount}
   * **Audit Logs**: ${auditLogsCount}
 
 ## Outcome Summary

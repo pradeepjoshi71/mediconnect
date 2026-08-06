@@ -333,6 +333,11 @@ function pruneOldDumps(retentionDays) {
  *   DB_HOST, DB_PORT, DB_USER, DB_NAME, PGPASSWORD
  */
 async function runPgDump(dumpPath) {
+  let envPath = process.env.PATH || '';
+  if (process.platform === 'win32' && !envPath.includes('PostgreSQL')) {
+    envPath += ';C:\\Program Files\\PostgreSQL\\17\\bin;C:\\Program Files\\PostgreSQL\\16\\bin;C:\\Program Files\\PostgreSQL\\15\\bin';
+  }
+
   const args = [
     '--format=custom',       // Fc — compressed, supports parallel restore
     '--no-password',
@@ -345,6 +350,7 @@ async function runPgDump(dumpPath) {
 
   const env = {
     ...process.env,
+    PATH: envPath,
     PGPASSWORD: process.env.PGPASSWORD || process.env.DB_PASSWORD || '',
   };
 

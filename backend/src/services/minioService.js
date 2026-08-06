@@ -6,7 +6,7 @@ let minioClient = null;
 function getMinioClient() {
   if (minioClient) return minioClient;
 
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_TEST_CONTEXT === 'true') {
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_TEST_CONTEXT === 'true' || process.env.MINIO_MOCK === 'true') {
     logger.info('MinIO: Using Mock Client for Testing');
     minioClient = {
       bucketExists: async () => true,

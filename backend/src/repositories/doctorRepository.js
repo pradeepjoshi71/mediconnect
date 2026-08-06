@@ -11,8 +11,9 @@ async function listDoctors({
   page,
   limit,
 }) {
-  const where = [`d.hospital_id = $1`];
-  const params = [hospitalId];
+  // hospitalId is null when the caller is super_admin (cross-tenant listing)
+  const where = hospitalId ? [`d.hospital_id = $1`] : [];
+  const params = hospitalId ? [hospitalId] : [];
 
   if (!includeInactive) {
     where.push(`u.status = 'active'`);
@@ -49,7 +50,7 @@ async function listDoctors({
     `SELECT COUNT(*)::int
      FROM doctors d
      JOIN users u ON u.id = d.user_id
-     WHERE ${where.join(" AND ")}`,
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}`,
     params
   );
   const total = countResult.rows[0].count;
@@ -79,7 +80,7 @@ async function listDoctors({
       d.created_at
     FROM doctors d
     JOIN users u ON u.id = d.user_id
-    WHERE ${where.join(" AND ")}
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY ${orderBy}
   `;
 

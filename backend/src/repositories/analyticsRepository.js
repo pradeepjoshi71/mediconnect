@@ -20,17 +20,17 @@ async function getHeadlineStats(hospitalId) {
             AND status = 'waiting'
         )::int AS "openWaitlist",
         (
-          SELECT COALESCE(SUM(amount_cents), 0)
+          SELECT COALESCE(SUM(amount), 0)
           FROM payments
           WHERE hospital_id = $1
             AND status = 'paid'
-        )::int AS "revenueCollectedCents",
+        )::numeric AS "revenueCollectedCents",
         (
-          SELECT COALESCE(SUM(amount_cents), 0)
+          SELECT COALESCE(SUM(amount), 0)
           FROM payments
           WHERE hospital_id = $1
             AND status IN ('pending', 'processing')
-        )::int AS "outstandingRevenueCents"
+        )::numeric AS "outstandingRevenueCents"
     `,
     [hospitalId]
   );
@@ -72,7 +72,7 @@ async function getRevenueSeries(hospitalId) {
       SELECT
         to_char(day_bucket, 'Mon DD') AS label,
         day_bucket::date AS date,
-        COALESCE(sums.revenue_cents, 0)::int AS "amountCents"
+        COALESCE(sums.revenue_cents, 0)::numeric AS "amountCents"
       FROM (
         SELECT
           generate_series(
@@ -82,7 +82,7 @@ async function getRevenueSeries(hospitalId) {
           ) AS day_bucket
       ) buckets
       LEFT JOIN LATERAL (
-        SELECT SUM(p.amount_cents) AS revenue_cents
+        SELECT SUM(p.amount) AS revenue_cents
         FROM payments p
         WHERE p.hospital_id = $1
           AND p.status = 'paid'
@@ -96,7 +96,6 @@ async function getRevenueSeries(hospitalId) {
   return result.rows;
 }
 
-
 async function getDoctorPerformance(hospitalId) {
   const result = await db.query(
     `
@@ -105,16 +104,19 @@ async function getDoctorPerformance(hospitalId) {
         u.full_name AS "doctorName",
         d.specialization,
         d.rating,
-        COUNT(a.id)::int AS "completedAppointments",
-        COALESCE(SUM(pay.amount_cents), 0)::int AS "revenueCents"
+        COUNT(DISTINCT a.id)::int AS "completedAppointments",
+        COALESCE(SUM(pay.amount), 0)::numeric AS "revenueCents"
       FROM doctors d
       JOIN users u ON u.id = d.user_id
       LEFT JOIN appointments a
         ON a.doctor_id = d.id
        AND a.hospital_id = d.hospital_id
        AND a.status = 'completed'
+      LEFT JOIN invoices inv
+        ON inv.appointment_id = a.id
+       AND inv.hospital_id = d.hospital_id
       LEFT JOIN payments pay
-        ON pay.appointment_id = a.id
+        ON pay.invoice_id = inv.id
        AND pay.hospital_id = d.hospital_id
        AND pay.status = 'paid'
       WHERE d.hospital_id = $1

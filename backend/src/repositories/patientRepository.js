@@ -91,8 +91,9 @@ async function findPatientByUserId(userId, hospitalId) {
 }
 
 async function listPatients(hospitalId, search = "") {
-  const params = [hospitalId];
-  const where = [`p.hospital_id = $1`];
+  // hospitalId is null when caller is super_admin (cross-tenant listing)
+  const params = hospitalId ? [hospitalId] : [];
+  const where = hospitalId ? [`p.hospital_id = $1`] : [];
 
   if (search) {
     params.push(`%${search}%`);

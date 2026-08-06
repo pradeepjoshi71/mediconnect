@@ -1,12 +1,13 @@
 const db = require("../config/db");
 
 async function listLabTests(hospitalId) {
+  // hospitalId is null when caller is super_admin (cross-tenant listing)
   const result = await db.query(
     `SELECT id, test_code AS "testCode", test_name AS "testName", category, price, description, status
      FROM lab_tests
-     WHERE hospital_id = $1
+     ${hospitalId ? "WHERE hospital_id = $1" : ""}
      ORDER BY category ASC, test_name ASC`,
-    [hospitalId]
+    hospitalId ? [hospitalId] : []
   );
   return result.rows;
 }
@@ -40,8 +41,9 @@ async function createLabTest(hospitalId, data) {
 }
 
 async function listLabOrders(hospitalId, filters = {}) {
-  const params = [hospitalId];
-  const conditions = ["lo.hospital_id = $1"];
+  // hospitalId is null when caller is super_admin (cross-tenant listing)
+  const params = hospitalId ? [hospitalId] : [];
+  const conditions = hospitalId ? ["lo.hospital_id = $1"] : [];
 
   if (filters.patientId) {
     params.push(filters.patientId);
@@ -79,7 +81,7 @@ async function listLabOrders(hospitalId, filters = {}) {
     JOIN doctors doc ON doc.id = lo.doctor_id
     JOIN users du ON du.id = doc.user_id
     JOIN lab_tests lt ON lt.id = lo.test_id
-    WHERE ${conditions.join(" AND ")}
+    ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
     ORDER BY lo.ordered_at DESC
   `;
 
@@ -159,8 +161,9 @@ async function createLabReport(hospitalId, data) {
 }
 
 async function listLabReports(hospitalId, filters = {}) {
-  const params = [hospitalId];
-  const conditions = ["lr.hospital_id = $1"];
+  // hospitalId is null when caller is super_admin (cross-tenant listing)
+  const params = hospitalId ? [hospitalId] : [];
+  const conditions = hospitalId ? ["lr.hospital_id = $1"] : [];
 
   if (filters.patientId) {
     params.push(filters.patientId);
@@ -188,7 +191,7 @@ async function listLabReports(hospitalId, filters = {}) {
     LEFT JOIN users uu ON uu.id = lr.uploaded_by
     JOIN lab_orders lo ON lo.id = lr.lab_order_id
     JOIN lab_tests lt ON lt.id = lo.test_id
-    WHERE ${conditions.join(" AND ")}
+    WHERE ${conditions.length ? conditions.join(" AND ") : "1=1"}
     ORDER BY lr.uploaded_at DESC
   `;
 
@@ -207,6 +210,7 @@ async function findLabReportById(id, hospitalId) {
 }
 
 async function getRevenueByTestType(hospitalId) {
+  // hospitalId is null when caller is super_admin (cross-tenant aggregate)
   const result = await db.query(
     `SELECT 
       lt.category AS "testCategory",
@@ -214,10 +218,10 @@ async function getRevenueByTestType(hospitalId) {
       COUNT(lo.id)::integer AS "ordersCount"
      FROM lab_orders lo
      JOIN lab_tests lt ON lt.id = lo.test_id
-     WHERE lo.hospital_id = $1 AND lo.order_status = 'COMPLETED'
+     ${hospitalId ? "WHERE lo.hospital_id = $1 AND lo.order_status = 'COMPLETED'" : "WHERE lo.order_status = 'COMPLETED'"}
      GROUP BY lt.category
      ORDER BY "totalRevenue" DESC`,
-    [hospitalId]
+    hospitalId ? [hospitalId] : []
   );
   return result.rows;
 }

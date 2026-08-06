@@ -10,7 +10,9 @@ async function listPatients(user, search) {
   if (!hasPermission(user, "view_patients")) {
     throw new AppError(403, "You do not have access to patient search");
   }
-  return patientRepository.listPatients(user.hospitalId, search);
+  // super_admin gets cross-tenant visibility (hospitalId = null removes hospital filter in repo)
+  const hospitalId = user.role === "super_admin" ? null : user.hospitalId;
+  return patientRepository.listPatients(hospitalId, search);
 }
 
 async function getPatientSummary(user, patientId, context) {

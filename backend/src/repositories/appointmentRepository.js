@@ -39,8 +39,9 @@ const APPOINTMENT_SELECT = `
 `;
 
 async function listAppointmentsForScope({ hospitalId, role, patientId, doctorId, date, status }) {
-  const where = [`a.hospital_id = $1`];
-  const params = [hospitalId];
+  // hospitalId is null when caller is super_admin (cross-tenant listing)
+  const where = hospitalId ? [`a.hospital_id = $1`] : [];
+  const params = hospitalId ? [hospitalId] : [];
 
   if (role === "patient") {
     params.push(patientId);

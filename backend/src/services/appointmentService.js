@@ -346,9 +346,11 @@ async function bookAppointment(user, payload, context) {
 }
 
 async function listAppointments(user, filters) {
+  // super_admin gets cross-tenant visibility (hospitalId = null removes hospital filter in repo)
+  const hospitalId = user.role === "super_admin" ? null : user.hospitalId;
   return appointmentRepository.listAppointmentsForScope({
-    hospitalId: user.hospitalId,
-    role: user.role,
+    hospitalId,
+    role: user.role === "super_admin" ? "admin" : user.role,
     patientId: user.patientProfileId,
     doctorId: user.doctorProfileId,
     date: filters.date,

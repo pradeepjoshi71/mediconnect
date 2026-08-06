@@ -6,7 +6,9 @@ const { AppError } = require("../utils/http");
 const { hasPermission } = require("../utils/rbac");
 
 async function listLabTests(user) {
-  return labRepository.listLabTests(user.hospitalId);
+  // super_admin gets cross-tenant visibility
+  const hospitalId = user.role === "super_admin" ? null : user.hospitalId;
+  return labRepository.listLabTests(hospitalId);
 }
 
 async function createLabTest(user, data, context) {
@@ -48,7 +50,9 @@ async function listLabOrders(user, filters, context) {
     }
   }
 
-  const orders = await labRepository.listLabOrders(user.hospitalId, {
+  const orders = await labRepository.listLabOrders(
+    user.role === "super_admin" ? null : user.hospitalId,
+    {
     patientId,
     doctorId,
     status: filters.status
@@ -185,7 +189,9 @@ async function listLabReports(user, patientId, context) {
     filteredPatientId = patient.id;
   }
 
-  const reports = await labRepository.listLabReports(user.hospitalId, {
+  const reports = await labRepository.listLabReports(
+    user.role === "super_admin" ? null : user.hospitalId,
+    {
     patientId: filteredPatientId
   });
 
@@ -208,7 +214,9 @@ async function getRevenueByTestType(user, context) {
     throw new AppError(403, "Forbidden: Only admins can view lab revenue statistics");
   }
 
-  const data = await labRepository.getRevenueByTestType(user.hospitalId);
+  const data = await labRepository.getRevenueByTestType(
+    user.role === "super_admin" ? null : user.hospitalId
+  );
 
   if (context) {
     await auditService.recordAuditEvent({
